@@ -7,7 +7,7 @@ import { StationList } from '../components/StationList'
 import { MapLegend } from '../map/MapLegend'
 import { SenseMap, type MapViewport } from '../map/SenseMap'
 import { boxesToGeoJson } from '../map/markers'
-import { haversineKm, radiusKmForViewport } from '../weather/bbox'
+import { bboxKey, radiusKmForViewport } from '../weather/bbox'
 import { buildWeatherSnapshot } from '../weather/buildWeather'
 import { fetchViewportBoxes } from '../weather/fetchViewportBoxes'
 import { detectUserLocation, geocodeCity } from '../weather/geocode'
@@ -34,7 +34,7 @@ export function HomePage() {
   const viewportGen = useRef(0)
   const loadGen = useRef(0)
   const viewportAbort = useRef<AbortController | null>(null)
-  const lastViewport = useRef<{ center: LonLat; radiusKm: number } | null>(null)
+  const lastViewportKey = useRef<string | null>(null)
   const statusRef = useRef(status)
   const phenomenonRef = useRef(phenomenon)
   statusRef.current = status
@@ -59,7 +59,7 @@ export function HomePage() {
       setMapBoxes(next.freshBoxes)
       setMapFreshIds(next.freshBoxes.map((box) => box._id))
       setMapRadiusKm(next.quality.radiusKm)
-      lastViewport.current = { center: nextCenter, radiusKm: next.quality.radiusKm }
+      lastViewportKey.current = null
       setStatus('ready')
       debug.info('home', 'loadAt ready', {
         fresh: next.freshBoxes.length,
@@ -87,20 +87,19 @@ export function HomePage() {
       return
     }
 
-    const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
-    const prev = lastViewport.current
-    if (
-      prev &&
-      haversineKm(prev.center, viewport.center) < Math.max(1.5, prev.radiusKm * 0.15) &&
-      Math.abs(prev.radiusKm - Math.min(40, radiusKm)) < 4
-    ) {
-      debug.debug('home', 'viewport übersprungen (kaum verändert)', {
-        movedKm: Number(haversineKm(prev.center, viewport.center).toFixed(2)),
-        radiusKm,
-      })
+    const bbox = {
+      west: viewport.southWest.lon,
+      south: viewport.southWest.lat,
+      east: viewport.northEast.lon,
+      north: viewport.northEast.lat,
+    }
+    const key = bboxKey(bbox)
+    if (key === lastViewportKey.current) {
+      debug.debug('home', 'viewport übersprungen (gleiche bbox)', { key })
       return
     }
 
+    const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
     viewportAbort.current?.abort()
     const controller = new AbortController()
     viewportAbort.current = controller
@@ -113,12 +112,14 @@ export function HomePage() {
       zoom: viewport.zoom,
       center: viewport.center,
       radiusKm,
+      bbox: key,
     })
 
     try {
       const result = await fetchViewportBoxes(
         {
           center: viewport.center,
+          bbox,
           radiusKm,
         },
         {
@@ -132,7 +133,7 @@ export function HomePage() {
       setMapBoxes(result.boxes)
       setMapFreshIds(result.freshIds)
       setMapRadiusKm(result.radiusKm)
-      lastViewport.current = { center: viewport.center, radiusKm: result.radiusKm }
+      lastViewportKey.current = bboxKey(result.bbox)
       debug.info('home', 'viewport applied', {
         boxes: result.boxes.length,
         radiusKm: result.radiusKm,
@@ -213,8 +214,8 @@ export function HomePage() {
       <section className="section" id="map">
         <h2>Karte & Stationen</h2>
         <p className="section-lead">
-          Zahlen an den Messpunkten, darunter die Wärme-/Kältefläche. Verschieben lädt den
-          Ausschnitt nach (bis ~40 km — dichtere Regionen brauchen das).
+          Zahlen an den Messpunkten, darunter die Wärme-/Kältefläche. Verschieben/Zoomen lädt
+          Stationen für den sichtbaren Kartenausschnitt nach (wie opensensemap.org per bbox).
         </p>
         <div className="map-panel panel">
           <div className="map-toolbar" role="toolbar" aria-label="Phänomenfilter">

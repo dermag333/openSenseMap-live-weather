@@ -4,10 +4,11 @@ import { SenseMap, type MapViewport } from '../map/SenseMap'
 import { MapLegend } from '../map/MapLegend'
 import { StationList } from '../components/StationList'
 import { StatusBanner } from '../components/StatusBanner'
-import { radiusKmForViewport } from '../weather/bbox'
+import { bboxFromCenter, bboxKey, radiusKmForViewport } from '../weather/bbox'
 import { fetchViewportBoxes } from '../weather/fetchViewportBoxes'
 import type { LonLat, PhenomenonKey } from '../weather/types'
 import type { SenseBox } from '../api/types'
+import { ApiError } from '../api/types'
 import { debug } from '../debug/logger'
 
 const CENTER: LonLat = { lon: 10.0, lat: 51.2 }
@@ -23,15 +24,29 @@ export function ExplorePage() {
   const [loading, setLoading] = useState(true)
   const viewportGen = useRef(0)
   const viewportAbort = useRef<AbortController | null>(null)
+  const lastKey = useRef<string | null>(null)
   const phenomenonRef = useRef(phenomenon)
   phenomenonRef.current = phenomenon
 
   const jumpTo = useCallback((next: LonLat) => {
     setCenter(next)
     setRecenterKey(`jump-${next.lon},${next.lat}-${Date.now()}`)
+    lastKey.current = null
   }, [])
 
   const handleViewportIdle = useCallback(async (viewport: MapViewport) => {
+    const bbox = {
+      west: viewport.southWest.lon,
+      south: viewport.southWest.lat,
+      east: viewport.northEast.lon,
+      north: viewport.northEast.lat,
+    }
+    const key = bboxKey(bbox)
+    if (key === lastKey.current) {
+      debug.debug('explore', 'viewport übersprungen (gleiche bbox)')
+      return
+    }
+
     const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
     viewportAbort.current?.abort()
     const controller = new AbortController()
@@ -42,13 +57,14 @@ export function ExplorePage() {
     debug.info('explore', 'viewport idle → fetch', {
       gen,
       zoom: viewport.zoom,
-      center: viewport.center,
       radiusKm,
+      bbox: key,
     })
     try {
       const result = await fetchViewportBoxes(
         {
           center: viewport.center,
+          bbox,
           radiusKm,
         },
         {
@@ -57,19 +73,17 @@ export function ExplorePage() {
           signal: controller.signal,
         },
       )
-      if (gen !== viewportGen.current) {
-        debug.warn('explore', 'viewport verworfen', { gen })
-        return
-      }
+      if (gen !== viewportGen.current) return
       setBoxes(result.boxes)
       setFreshIds(result.freshIds)
+      lastKey.current = bboxKey(result.bbox)
       debug.info('explore', 'viewport applied', {
         boxes: result.boxes.length,
         radiusKm: result.radiusKm,
       })
     } catch (err) {
       if (gen !== viewportGen.current) return
-      if (err instanceof Error && err.message.startsWith('Aborted')) {
+      if (err instanceof ApiError && err.status === 499) {
         debug.debug('explore', 'viewport aborted')
         return
       }
@@ -81,11 +95,15 @@ export function ExplorePage() {
   }, [])
 
   useEffect(() => {
-    // Seed first load around Germany center until map fires viewport idle.
     let cancelled = false
     void (async () => {
       try {
-        const result = await fetchViewportBoxes({ center: CENTER, radiusKm: 120 })
+        const bbox = bboxFromCenter(CENTER, 80)
+        const result = await fetchViewportBoxes({
+          center: CENTER,
+          bbox,
+          radiusKm: 80,
+        })
         if (cancelled) return
         setBoxes(result.boxes)
         setFreshIds(result.freshIds)

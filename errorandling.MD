@@ -96,6 +96,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** `api/client` Queue + AbortSignal; Hero CSS-only; HomePage Gate/Abort/Dedupe; outdoor-Filter.
 - **Review:** Ein `/boxes` nach dem anderen; Konsole ohne Timeout-Kaskade; Temperatur-Marker wieder sichtbar.
 
+## 2026-08-03 — Zoom/Pan füllt Karte nicht (40-km-Cap)
+
+- **Research (konsole.md):** Nach Zoom auf Brandenburg `requestedRadiusKm: 89`, aber Fetch auf **40 km** gekappt; danach Skip „kaum verändert“. opensensemap.org nutzt **`bbox`** für den sichtbaren Ausschnitt (~1 s für Brandenburg vs. langsame `near`).
+- **Ideate:** Viewport per `bbox` wie Original; alle frischen Stationen als Punkte; Spread-Hydrate für °C/Wärme; Skip nur bei gleicher bbox.
+- **Plan/Execute:** `fetchViewportBoxes` auf bbox; MapViewport mit SW/NE; Marker ohne Wert bleiben sichtbar.
+- **Review:** Weit zoomen muss Punkte über den ganzen Ausschnitt zeigen, nicht nur ein Rechteck in der Mitte.
+
 ## Offen
 
 - CORS der openSenseMap API ist für Browser-GET öffentlich; bei Änderungen Proxy über Netlify Functions prüfen.

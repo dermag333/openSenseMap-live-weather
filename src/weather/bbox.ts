@@ -20,6 +20,12 @@ export function bboxToQuery(bbox: BBox): string {
   return `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`
 }
 
+/** Stable key for comparing map views (rounded). */
+export function bboxKey(bbox: BBox, digits = 3): string {
+  const r = (n: number) => n.toFixed(digits)
+  return `${r(bbox.west)},${r(bbox.south)},${r(bbox.east)},${r(bbox.north)}`
+}
+
 export function expandBBox(bbox: BBox, factor: number): BBox {
   const lonPad = ((bbox.east - bbox.west) * (factor - 1)) / 2
   const latPad = ((bbox.north - bbox.south) * (factor - 1)) / 2
@@ -35,7 +41,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-/** Great-circle distance in km between two lon/lat points. */
 export function haversineKm(a: LonLat, b: LonLat): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180
   const dLat = toRad(b.lat - a.lat)
@@ -48,9 +53,7 @@ export function haversineKm(a: LonLat, b: LonLat): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
-/** Radius that covers a map viewport from center to northeast corner. */
 export function radiusKmForViewport(center: LonLat, northEast: LonLat): number {
   const raw = haversineKm(center, northEast) * 1.08
-  // Wide zooms must cover the visible map (was wrongly capped at 40 km).
-  return Math.min(220, Math.max(2, raw))
+  return Math.min(250, Math.max(2, raw))
 }

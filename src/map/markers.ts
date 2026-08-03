@@ -47,7 +47,9 @@ export function boxesToGeoJson(
       }
     }
 
-    if (phenomenon !== 'all' && hasValue === 0) return []
+    // Keep stations without a populated value so the map fills like opensensemap.org;
+    // HTML labels only appear when hasValue === 1.
+    if (phenomenon !== 'all' && hasValue === 0 && !freshIds.has(box._id)) return []
 
     return [
       {

@@ -27,6 +27,7 @@ import { syncValueMarkers } from './valueMarkers'
 
 export type MapViewport = {
   center: LonLat
+  southWest: LonLat
   northEast: LonLat
   zoom: number
 }
@@ -96,8 +97,10 @@ export function SenseMap({
       const bounds = map.getBounds()
       const c = map.getCenter()
       const ne = bounds.getNorthEast()
+      const sw = bounds.getSouthWest()
       const viewport = {
         center: { lon: c.lng, lat: c.lat },
+        southWest: { lon: sw.lng, lat: sw.lat },
         northEast: { lon: ne.lng, lat: ne.lat },
         zoom: map.getZoom(),
       }
@@ -124,7 +127,7 @@ export function SenseMap({
     })
     map.on('moveend', () => {
       window.clearTimeout(idleTimer)
-      idleTimer = window.setTimeout(emitViewport, 800)
+      idleTimer = window.setTimeout(emitViewport, 1000)
     })
 
     map.on('click', CIRCLE_LAYER, (event: MapMouseEvent) => {
@@ -253,7 +256,7 @@ export function SenseMap({
     ? `Lade Ausschnitt${loadRadiusKm ? ` · ~${Math.round(loadRadiusKm)} km` : ''}…`
     : phenomenon === 'all'
       ? `${boxes.length} Stationen`
-      : `${stats.points} Messwerte · Wärmefeld`
+      : `${stats.points} Werte · ${boxes.length} Stationen`
 
   return (
     <div className="map-frame">
