@@ -4,7 +4,7 @@ export const API_BASE =
   import.meta.env.VITE_OSEM_API_URL?.replace(/\/$/, '') ||
   'https://api.opensensemap.org'
 
-const DEFAULT_TIMEOUT_MS = 20_000
+const DEFAULT_TIMEOUT_MS = 45_000
 
 export async function apiGet<T>(
   path: string,

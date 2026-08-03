@@ -33,6 +33,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** Header in `geocode.ts`.
 - **Review:** Geocoding sollte mit gültigem UA funktionieren; bei 429 Rate-Limit in UI melden.
 
+## 2026-08-03 — Live-Demo zeigte keine Temperaturwerte
+
+- **Research:** Seite lud lange; danach „Kein frischer Temperaturwert“, obwohl frische Stationen gelistet waren. `GET /boxes` liefert `lastMeasurement` oft nur als ObjectId-String. `bbox`-Queries für Berlin dauerten ~30s (Timeout 20s).
+- **Ideate:** Schnelle `near`/`maxDistance`-Suche + Hydrate per `GET /boxes/:id`; Ausreißer per IQR filtern.
+- **Plan/Execute:** `hydrate.ts`, `buildWeather.ts` umgestellt, Timeout 45s, engere Plausibilitätsgrenzen, Suchfeld-Kontrast verbessert.
+- **Review:** Report muss Mediane aus hydrierten Sensoren zeigen.
+
 ## 2026-08-03 — Netlify CLI ohne Login blockiert
 
 - **Research:** `npx netlify-cli status` hing ohne Auth-Token / interaktives Login.

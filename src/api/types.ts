@@ -14,7 +14,8 @@ export type Sensor = {
   title: string
   unit: string
   sensorType?: string
-  lastMeasurement?: Measurement | null
+  /** List endpoints may return an ObjectId string instead of a populated measurement. */
+  lastMeasurement?: Measurement | string | null
 }
 
 export type SenseBox = {

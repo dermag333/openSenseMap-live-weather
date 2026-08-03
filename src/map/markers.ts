@@ -26,9 +26,10 @@ export function boxesToGeoJson(
 
     if (phenomenon !== 'all') {
       const sensor = box.sensors?.find((s) => classifySensor(s)?.key === phenomenon)
-      if (sensor?.lastMeasurement?.value) {
-        value = Number.parseFloat(sensor.lastMeasurement.value)
-        unit = sensor.unit
+      const measurement = sensor?.lastMeasurement
+      if (measurement && typeof measurement === 'object' && 'value' in measurement) {
+        value = Number.parseFloat(measurement.value)
+        unit = sensor?.unit
       }
     }
 

@@ -4,8 +4,8 @@ import { fetchBoxes } from '../api/boxes'
 import { SenseMap } from '../map/SenseMap'
 import { StationList } from '../components/StationList'
 import { StatusBanner } from '../components/StatusBanner'
-import { bboxFromCenter, bboxToQuery } from '../weather/bbox'
 import { filterFreshBoxes } from '../weather/freshness'
+import { hydrateBoxes } from '../weather/hydrate'
 import type { LonLat, PhenomenonKey } from '../weather/types'
 import type { SenseBox } from '../api/types'
 
@@ -27,11 +27,16 @@ export function ExplorePage() {
       setLoading(true)
       setError(null)
       try {
-        const bbox = bboxFromCenter(center, 80)
-        const data = await fetchBoxes({ bbox: bboxToQuery(bbox) })
+        const data = await fetchBoxes({
+          near: `${center.lon},${center.lat}`,
+          maxDistance: 25_000,
+        })
         if (cancelled) return
         const fresh = filterFreshBoxes(data, 12, false)
-        setBoxes(data)
+        const hydrated = await hydrateBoxes(fresh, 25)
+        const byId = new Map(hydrated.map((b) => [b._id, b]))
+        const merged = data.map((b) => byId.get(b._id) ?? b)
+        setBoxes(merged)
         setFreshIds(fresh.map((b) => b._id))
       } catch (err) {
         if (!cancelled) {
@@ -61,13 +66,25 @@ export function ExplorePage() {
 
       <div className="map-panel panel">
         <div className="map-toolbar">
-          <button type="button" className="btn btn-ghost" onClick={() => setCenter({ lon: 13.4, lat: 52.52 })}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setCenter({ lon: 13.4, lat: 52.52 })}
+          >
             Berlin
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setCenter({ lon: 9.99, lat: 53.55 })}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setCenter({ lon: 9.99, lat: 53.55 })}
+          >
             Hamburg
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setCenter({ lon: 11.58, lat: 48.14 })}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setCenter({ lon: 11.58, lat: 48.14 })}
+          >
             München
           </button>
           {(

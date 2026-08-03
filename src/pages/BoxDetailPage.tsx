@@ -40,14 +40,21 @@ export function BoxDetailPage() {
               sensorId: sensor._id,
               title: sensor.title,
               points: points.length,
-              latest: points[0]?.value ?? sensor.lastMeasurement?.value,
+              latest:
+                points[0]?.value ??
+                (sensor.lastMeasurement && typeof sensor.lastMeasurement === 'object'
+                  ? sensor.lastMeasurement.value
+                  : undefined),
             })
           } catch {
             previews.push({
               sensorId: sensor._id,
               title: sensor.title,
               points: 0,
-              latest: sensor.lastMeasurement?.value,
+              latest:
+                sensor.lastMeasurement && typeof sensor.lastMeasurement === 'object'
+                  ? sensor.lastMeasurement.value
+                  : undefined,
             })
           }
         }
@@ -98,6 +105,11 @@ export function BoxDetailPage() {
             <h3>Aktuelle Sensoren</h3>
             {(box.sensors ?? []).map((sensor) => {
               const kind = classifySensor(sensor)?.label
+              const latest =
+                sensor.lastMeasurement &&
+                typeof sensor.lastMeasurement === 'object'
+                  ? sensor.lastMeasurement.value
+                  : undefined
               return (
                 <div className="sensor-row" key={sensor._id}>
                   <div>
@@ -107,7 +119,7 @@ export function BoxDetailPage() {
                     </div>
                   </div>
                   <div>
-                    {sensor.lastMeasurement?.value ?? '—'} {sensor.unit}
+                    {latest ?? '—'} {sensor.unit}
                   </div>
                 </div>
               )

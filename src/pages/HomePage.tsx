@@ -97,7 +97,11 @@ export function HomePage() {
         {message && (
           <StatusBanner tone={status === 'error' ? 'error' : 'warning'}>{message}</StatusBanner>
         )}
-        {status === 'loading' && <StatusBanner>Lade Messungen von der openSenseMap API…</StatusBanner>}
+        {status === 'loading' && (
+          <StatusBanner>
+            Lade Messungen… Stationen werden gefunden und Messwerte nachgeladen.
+          </StatusBanner>
+        )}
         {snapshot && status !== 'loading' && <WeatherReportView snapshot={snapshot} />}
       </section>
 
