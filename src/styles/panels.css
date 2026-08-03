@@ -84,9 +84,23 @@
   gap: var(--space-2);
 }
 
-.map-stage {
+.map-frame {
   position: relative;
-  isolation: isolate;
+}
+
+.map-live-stats {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 6;
+  padding: 0.4rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(13, 31, 36, 0.9);
+  border: 1px solid var(--stroke);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  pointer-events: none;
 }
 
 .map-stage .sense-map {
@@ -149,6 +163,20 @@
   color: var(--ink-muted);
   font-size: 0.75rem;
   line-height: 1.35;
+}
+
+.temp-marker {
+  padding: 0.15rem 0.4rem;
+  border-radius: 8px;
+  background: rgba(13, 31, 36, 0.88);
+  border: 1px solid rgba(238, 246, 243, 0.35);
+  color: #eef6f3;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 .map-toolbar {

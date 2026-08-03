@@ -7,89 +7,73 @@ export const STATION_SOURCE = 'senseboxes'
 export const HEAT_SOURCE = 'heat-grid'
 export const HEAT_LAYER = 'heat-fill'
 export const CIRCLE_LAYER = 'senseboxes-circle'
-export const LABEL_LAYER = 'senseboxes-label'
 
 export function addWeatherMapLayers(map: Map) {
-  map.addSource(STATION_SOURCE, {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  })
+  if (!map.getSource(STATION_SOURCE)) {
+    map.addSource(STATION_SOURCE, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  }
 
-  map.addSource(HEAT_SOURCE, {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  })
+  if (!map.getSource(HEAT_SOURCE)) {
+    map.addSource(HEAT_SOURCE, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  }
 
-  // Transparent interpolated warmth/cold surface
-  map.addLayer({
-    id: HEAT_LAYER,
-    type: 'fill',
-    source: HEAT_SOURCE,
-    layout: { visibility: 'none' },
-    paint: {
-      'fill-color': [
-        'interpolate',
-        ['linear'],
-        ['get', 'value'],
-        -10, '#2b5cff',
-        0, '#4aa3ff',
-        10, '#6fd6c0',
-        18, '#2bb59a',
-        24, '#e3a15b',
-        32, '#e07a6c',
-        38, '#c23b2e',
-      ],
-      'fill-opacity': 0.55,
-    },
-  })
+  if (!map.getLayer(HEAT_LAYER)) {
+    map.addLayer({
+      id: HEAT_LAYER,
+      type: 'fill',
+      source: HEAT_SOURCE,
+      paint: {
+        'fill-color': [
+          'interpolate',
+          ['linear'],
+          ['get', 'value'],
+          -10, '#2b5cff',
+          0, '#4aa3ff',
+          10, '#6fd6c0',
+          18, '#2bb59a',
+          24, '#e3a15b',
+          32, '#e07a6c',
+          38, '#c23b2e',
+        ],
+        'fill-opacity': 0.58,
+      },
+    })
+  }
 
-  map.addLayer({
-    id: CIRCLE_LAYER,
-    type: 'circle',
-    source: STATION_SOURCE,
-    paint: {
-      'circle-radius': 8,
-      'circle-color': '#1f7a6c',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff',
-      'circle-opacity': 1,
-    },
-  })
-
-  map.addLayer({
-    id: LABEL_LAYER,
-    type: 'symbol',
-    source: STATION_SOURCE,
-    layout: {
-      'text-field': ['to-string', ['get', 'label']],
-      'text-size': 16,
-      'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-      'text-offset': [0, -1.55],
-      'text-anchor': 'bottom',
-      'text-allow-overlap': true,
-      'text-ignore-placement': true,
-      visibility: 'none',
-    },
-    paint: {
-      'text-color': '#ffffff',
-      'text-halo-color': '#0d1f24',
-      'text-halo-width': 2.6,
-    },
-  })
+  if (!map.getLayer(CIRCLE_LAYER)) {
+    map.addLayer({
+      id: CIRCLE_LAYER,
+      type: 'circle',
+      source: STATION_SOURCE,
+      paint: {
+        'circle-radius': 7,
+        'circle-color': '#1f7a6c',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+        'circle-opacity': 1,
+      },
+    })
+  }
 }
 
 export function applyPhenomenonStyle(map: Map, phenomenon: PhenomenonKey | 'all') {
   const showHeat = phenomenon !== 'all'
-  const visibility = showHeat ? 'visible' : 'none'
 
   if (map.getLayer(HEAT_LAYER)) {
-    map.setLayoutProperty(HEAT_LAYER, 'visibility', visibility)
+    map.setLayoutProperty(HEAT_LAYER, 'visibility', showHeat ? 'visible' : 'none')
     if (showHeat) {
       map.setPaintProperty(
         HEAT_LAYER,
         'fill-color',
         heatFillColorExpression(phenomenon) as never,
       )
+      map.setPaintProperty(HEAT_LAYER, 'fill-opacity', 0.58)
     }
   }
 
@@ -99,9 +83,5 @@ export function applyPhenomenonStyle(map: Map, phenomenon: PhenomenonKey | 'all'
       'circle-color',
       circleColorExpression(phenomenon) as never,
     )
-  }
-
-  if (map.getLayer(LABEL_LAYER)) {
-    map.setLayoutProperty(LABEL_LAYER, 'visibility', visibility)
   }
 }

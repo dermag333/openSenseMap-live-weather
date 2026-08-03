@@ -35,10 +35,10 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 
 ## 2026-08-03 — Kartenfilter ohne Wärme-Layer / Zahlen
 
-- **Research:** Nutzer erwartet Zahlen an Messpunkten + transparenten Wärme-/Kälte-Layer dazwischen. Server-`/statistics/idw` liefert oft leere Features oder 422 (zu teuer).
-- **Ideate:** Clientseitiges IDW-Grid aus hydrierten Stationen + Symbol-Labels.
-- **Plan/Execute:** `heatGrid.ts`, `mapLayers.ts` (fill → circles → labels).
-- **Review:** Bei Phänomenfilter muss Fläche + Zahlen sichtbar sein.
+- **Research:** Nutzer erwartet Zahlen an Messpunkten + transparenten Wärme-/Kälte-Layer. Symbol-Layer/Heatmap blieben unsichtbar; Server-IDW oft leer/422.
+- **Ideate:** Client-IDW-Fill + HTML-Marker für Zahlen (ohne Glyph-Fonts).
+- **Plan/Execute:** `heatGrid.ts`, `valueMarkers.ts`, pending sync nach `map.on('load')`.
+- **Review:** Bei Temperatur müssen Fläche + °C-Labels sichtbar sein.
 
 ## 2026-08-03 — Live-Demo zeigte keine Temperaturwerte
 

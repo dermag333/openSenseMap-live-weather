@@ -1,15 +1,16 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LngLatBounds,
   Map,
   NavigationControl,
   type GeoJSONSource,
   type MapMouseEvent,
+  type Marker,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { SenseBox } from '../api/types'
 import type { LonLat, PhenomenonKey } from '../weather/types'
-import { buildHeatGrid } from './heatGrid'
+import { buildHeatGrid, type HeatPoint } from './heatGrid'
 import {
   addWeatherMapLayers,
   applyPhenomenonStyle,
@@ -19,7 +20,7 @@ import {
 } from './mapLayers'
 import { mapStyle } from './mapStyle'
 import { boxesToGeoJson } from './markers'
-import type { HeatPoint } from './heatGrid'
+import { syncValueMarkers } from './valueMarkers'
 
 type SenseMapProps = {
   center: LonLat
@@ -42,8 +43,10 @@ export function SenseMap({
 }: SenseMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<Map | null>(null)
+  const markersRef = useRef<Marker[]>([])
   const onSelectRef = useRef(onSelectBox)
   const pendingRef = useRef<null | (() => void)>(null)
+  const [stats, setStats] = useState({ points: 0, cells: 0 })
   onSelectRef.current = onSelectBox
 
   useEffect(() => {
@@ -60,11 +63,7 @@ export function SenseMap({
     mapRef.current = map
 
     map.on('load', () => {
-      try {
-        addWeatherMapLayers(map)
-      } catch (error) {
-        console.error('Failed to add weather layers', error)
-      }
+      addWeatherMapLayers(map)
       map.resize()
       pendingRef.current?.()
       pendingRef.current = null
@@ -87,15 +86,15 @@ export function SenseMap({
 
     return () => {
       pendingRef.current = null
+      for (const marker of markersRef.current) marker.remove()
+      markersRef.current = []
       map.remove()
       mapRef.current = null
     }
   }, [])
 
   useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    map.easeTo({ center: [center.lon, center.lat], duration: 700 })
+    mapRef.current?.easeTo({ center: [center.lon, center.lat], duration: 700 })
   }, [center.lat, center.lon])
 
   useEffect(() => {
@@ -109,7 +108,10 @@ export function SenseMap({
         ? { type: 'FeatureCollection' as const, features: [] }
         : buildHeatGrid(heatPoints, 36, 36)
 
+    setStats({ points: heatPoints.length, cells: heat.features.length })
+
     const apply = () => {
+      addWeatherMapLayers(map)
       const stationSource = map.getSource(STATION_SOURCE) as GeoJSONSource | undefined
       const heatSource = map.getSource(HEAT_SOURCE) as GeoJSONSource | undefined
       if (!stationSource || !heatSource) return false
@@ -117,6 +119,12 @@ export function SenseMap({
       stationSource.setData(stations)
       heatSource.setData(heat)
       applyPhenomenonStyle(map, phenomenon)
+      markersRef.current = syncValueMarkers(
+        map,
+        stations,
+        markersRef.current,
+        phenomenon !== 'all',
+      )
       fitToStations(map, heatPoints, center)
       map.resize()
       return true
@@ -142,7 +150,16 @@ export function SenseMap({
     })
   }, [selectedBoxId, boxes])
 
-  return <div ref={containerRef} className={className ?? 'sense-map'} role="presentation" />
+  return (
+    <div className="map-frame">
+      <div ref={containerRef} className={className ?? 'sense-map'} role="presentation" />
+      <div className="map-live-stats" aria-live="polite">
+        {phenomenon === 'all'
+          ? `${boxes.length} Stationen`
+          : `${stats.points} Messwerte · ${stats.cells} Wärmezellen`}
+      </div>
+    </div>
+  )
 }
 
 function stationHeatPoints(
