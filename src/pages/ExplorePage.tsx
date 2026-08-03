@@ -8,6 +8,7 @@ import { radiusKmForViewport } from '../weather/bbox'
 import { fetchViewportBoxes } from '../weather/fetchViewportBoxes'
 import type { LonLat, PhenomenonKey } from '../weather/types'
 import type { SenseBox } from '../api/types'
+import { debug } from '../debug/logger'
 
 const CENTER: LonLat = { lon: 10.0, lat: 51.2 }
 
@@ -31,10 +32,16 @@ export function ExplorePage() {
 
   const handleViewportIdle = useCallback(async (viewport: MapViewport) => {
     const gen = ++viewportGen.current
+    const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
     setLoading(true)
     setError(null)
+    debug.info('explore', 'viewport idle → fetch', {
+      gen,
+      zoom: viewport.zoom,
+      center: viewport.center,
+      radiusKm,
+    })
     try {
-      const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
       const result = await fetchViewportBoxes(
         {
           center: viewport.center,
@@ -45,12 +52,19 @@ export function ExplorePage() {
             phenomenonRef.current === 'all' ? undefined : phenomenonRef.current,
         },
       )
-      if (gen !== viewportGen.current) return
+      if (gen !== viewportGen.current) {
+        debug.warn('explore', 'viewport verworfen', { gen })
+        return
+      }
       setBoxes(result.boxes)
       setFreshIds(result.freshIds)
-      setCenter(viewport.center)
+      debug.info('explore', 'viewport applied', {
+        boxes: result.boxes.length,
+        radiusKm: result.radiusKm,
+      })
     } catch (err) {
       if (gen !== viewportGen.current) return
+      debug.error('explore', 'viewport failed', err)
       setError(err instanceof Error ? err.message : 'Laden fehlgeschlagen')
     } finally {
       if (gen === viewportGen.current) setLoading(false)
@@ -87,7 +101,6 @@ export function ExplorePage() {
         <Link to="/">Live-Wetterbericht</Link>.
       </p>
 
-      {loading && <StatusBanner>Lade senseBoxes…</StatusBanner>}
       {error && <StatusBanner tone="error">{error}</StatusBanner>}
 
       <div className="map-panel panel">
@@ -149,6 +162,7 @@ export function ExplorePage() {
           selectedBoxId={selectedBoxId}
           onSelectBox={setSelectedBoxId}
           onViewportIdle={handleViewportIdle}
+          loading={loading}
           className="sense-map"
         />
         <MapLegend phenomenon={phenomenon} />

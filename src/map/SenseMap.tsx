@@ -8,6 +8,7 @@ import {
   type Marker,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { debug } from '../debug/logger'
 import type { SenseBox } from '../api/types'
 import type { LonLat, PhenomenonKey } from '../weather/types'
 import type { HeatPoint } from './heatGrid'
@@ -21,6 +22,7 @@ import {
 } from './mapLayers'
 import { mapStyle } from './mapStyle'
 import { boxesToGeoJson } from './markers'
+import { setupMaplibreWorker } from './setupMaplibre'
 import { syncValueMarkers } from './valueMarkers'
 
 export type MapViewport = {
@@ -36,9 +38,10 @@ type SenseMapProps = {
   phenomenon: PhenomenonKey | 'all'
   selectedBoxId?: string
   onSelectBox?: (boxId: string) => void
-  /** When this key changes, map re-fits to stations once (search / locate). */
   recenterKey?: string
   onViewportIdle?: (viewport: MapViewport) => void
+  loading?: boolean
+  loadRadiusKm?: number
   className?: string
   showStats?: boolean
 }
@@ -52,6 +55,8 @@ export function SenseMap({
   onSelectBox,
   recenterKey,
   onViewportIdle,
+  loading = false,
+  loadRadiusKm,
   className,
   showStats = true,
 }: SenseMapProps) {
@@ -70,6 +75,12 @@ export function SenseMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
+    setupMaplibreWorker()
+    debug.info('map', 'MapLibre Map wird erzeugt', {
+      center,
+      className: className ?? 'sense-map',
+    })
+
     const map = new Map({
       container: containerRef.current,
       style: mapStyle,
@@ -85,29 +96,35 @@ export function SenseMap({
       const bounds = map.getBounds()
       const c = map.getCenter()
       const ne = bounds.getNorthEast()
-      onViewportRef.current?.({
+      const viewport = {
         center: { lon: c.lng, lat: c.lat },
         northEast: { lon: ne.lng, lat: ne.lat },
         zoom: map.getZoom(),
-      })
+      }
+      debug.debug('map', 'viewport idle', viewport)
+      onViewportRef.current?.(viewport)
     }
 
     const onLoad = () => {
       try {
+        debug.info('map', 'style loaded')
         addWeatherMapLayers(map)
         paintFromRef(map)
         map.resize()
         window.clearTimeout(idleTimer)
-        idleTimer = window.setTimeout(emitViewport, 200)
+        idleTimer = window.setTimeout(emitViewport, 250)
       } catch (error) {
-        console.error('Map load failed', error)
+        debug.error('map', 'Map load failed', error)
       }
     }
 
     map.on('load', onLoad)
+    map.on('error', (event) => {
+      debug.error('map', 'MapLibre error event', event.error ?? event)
+    })
     map.on('moveend', () => {
       window.clearTimeout(idleTimer)
-      idleTimer = window.setTimeout(emitViewport, 450)
+      idleTimer = window.setTimeout(emitViewport, 800)
     })
 
     map.on('click', CIRCLE_LAYER, (event: MapMouseEvent) => {
@@ -131,6 +148,7 @@ export function SenseMap({
       markersRef.current = []
       map.remove()
       mapRef.current = null
+      debug.info('map', 'Map entfernt')
     }
   }, [])
 
@@ -142,11 +160,10 @@ export function SenseMap({
       try {
         paintFromRef(map)
       } catch (error) {
-        console.error('Map paint failed', error)
+        debug.error('map', 'Map paint failed', error)
       }
     }
 
-    // updateImage / setData can flip isStyleLoaded(); 'load' won't re-fire — use idle.
     if (map.getSource(STATION_SOURCE) || map.isStyleLoaded()) {
       paint()
       return
@@ -164,6 +181,7 @@ export function SenseMap({
     const box = dataRef.current.boxes.find((b) => b._id === selectedBoxId)
     const coords = box?.currentLocation?.coordinates
     if (!coords) return
+    debug.debug('map', 'fly to selected box', { selectedBoxId, coords })
     try {
       map.easeTo({
         center: [coords[0], coords[1]],
@@ -188,14 +206,26 @@ export function SenseMap({
         ? null
         : buildHeatRaster(heatPoints, current.phenomenon)
 
+    const lons = heatPoints.map((p) => p.lon)
+    debug.info('map', 'paint', {
+      boxes: current.boxes.length,
+      features: stations.features.length,
+      heatPoints: heatPoints.length,
+      phenomenon: current.phenomenon,
+      lonSpan: lons.length ? Math.max(...lons) - Math.min(...lons) : 0,
+      rasterPixels: raster?.pixels ?? 0,
+    })
+
     setStats({ points: heatPoints.length, pixels: raster?.pixels ?? 0 })
 
     addWeatherMapLayers(map)
     const stationSource = map.getSource(STATION_SOURCE) as GeoJSONSource | undefined
-    if (!stationSource) return
+    if (!stationSource) {
+      debug.warn('map', 'station source fehlt — paint abgebrochen')
+      return
+    }
 
     stationSource.setData(stations)
-    // Markers first — heat raster updates must not block labels.
     markersRef.current = syncValueMarkers(
       map,
       stations,
@@ -207,25 +237,33 @@ export function SenseMap({
       setHeatRaster(map, raster)
       applyPhenomenonStyle(map, current.phenomenon)
     } catch (error) {
-      console.error('Heat layer update failed', error)
+      debug.error('map', 'Heat layer update failed', error)
     }
 
     const key = recenterKey ?? ''
     if (key && key !== fittedKeyRef.current) {
       fittedKeyRef.current = key
+      debug.info('map', 'fitToStations (recenter)', { key, points: heatPoints.length })
       fitToStations(map, heatPoints, current.center)
     }
     map.resize()
   }
 
+  const statsText = loading
+    ? `Lade Ausschnitt${loadRadiusKm ? ` · ~${Math.round(loadRadiusKm)} km` : ''}…`
+    : phenomenon === 'all'
+      ? `${boxes.length} Stationen`
+      : `${stats.points} Messwerte · Wärmefeld`
+
   return (
     <div className="map-frame">
       <div ref={containerRef} className={className ?? 'sense-map'} role="presentation" />
       {showStats && (
-        <div className="map-live-stats" aria-live="polite">
-          {phenomenon === 'all'
-            ? `${boxes.length} Stationen`
-            : `${stats.points} Messwerte · Wärmefeld aktiv`}
+        <div
+          className={`map-live-stats${loading ? ' loading' : ''}`}
+          aria-live="polite"
+        >
+          {statsText}
         </div>
       )}
     </div>

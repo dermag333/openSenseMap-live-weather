@@ -1,4 +1,5 @@
 import { ApiError } from './types'
+import { debug } from '../debug/logger'
 
 export const API_BASE =
   import.meta.env.VITE_OSEM_API_URL?.replace(/\/$/, '') ||
@@ -20,6 +21,9 @@ export async function apiGet<T>(
     }
   }
 
+  const started = performance.now()
+  debug.debug('api', 'GET start', { url: url.toString() })
+
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
 
@@ -31,6 +35,11 @@ export async function apiGet<T>(
 
     const text = await response.text()
     if (!response.ok) {
+      debug.error('api', 'GET failed', {
+        status: response.status,
+        path,
+        body: text.slice(0, 200),
+      })
       throw new ApiError(
         `openSenseMap API ${response.status}: ${path}`,
         response.status,
@@ -39,15 +48,29 @@ export async function apiGet<T>(
     }
 
     if (!text) {
+      debug.warn('api', 'GET empty body', {
+        path,
+        ms: Math.round(performance.now() - started),
+      })
       return undefined as T
     }
 
-    return JSON.parse(text) as T
+    const data = JSON.parse(text) as T
+    const count = Array.isArray(data) ? data.length : 1
+    debug.info('api', 'GET ok', {
+      path,
+      count,
+      ms: Math.round(performance.now() - started),
+      bytes: text.length,
+    })
+    return data
   } catch (error) {
     if (error instanceof ApiError) throw error
     if (error instanceof DOMException && error.name === 'AbortError') {
+      debug.error('api', 'GET timeout', { path, timeoutMs })
       throw new ApiError(`Timeout after ${timeoutMs}ms: ${path}`, 408, '')
     }
+    debug.error('api', 'GET exception', error)
     throw error
   } finally {
     window.clearTimeout(timer)

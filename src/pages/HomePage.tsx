@@ -14,6 +14,7 @@ import { detectUserLocation, geocodeCity } from '../weather/geocode'
 import type { LonLat, PhenomenonKey, WeatherSnapshot } from '../weather/types'
 import type { SenseBox } from '../api/types'
 import { ApiError } from '../api/types'
+import { debug } from '../debug/logger'
 
 const DEFAULT_CENTER: LonLat = { lon: 13.405, lat: 52.52 }
 
@@ -36,27 +37,34 @@ export function HomePage() {
   phenomenonRef.current = phenomenon
 
   const loadAt = useCallback(async (nextCenter: LonLat, label: string) => {
-    // Invalidate in-flight viewport fetches so they cannot overwrite this load.
     viewportGen.current += 1
     const myLoad = ++loadGen.current
     setStatus('loading')
     setMessage(null)
     setCenter(nextCenter)
+    debug.info('home', 'loadAt start', { nextCenter, label, myLoad })
     try {
       const next = await buildWeatherSnapshot(nextCenter, label)
-      if (myLoad !== loadGen.current) return
+      if (myLoad !== loadGen.current) {
+        debug.warn('home', 'loadAt verworfen (neuer Load)', { myLoad })
+        return
+      }
       setSnapshot(next)
-      // Seed with hydrated fresh stations only; map viewport fetch fills the view.
       setMapBoxes(next.freshBoxes)
       setMapFreshIds(next.freshBoxes.map((box) => box._id))
-      setSelectedBoxId(next.freshBoxes[0]?._id)
       setMapRadiusKm(next.quality.radiusKm)
       setStatus('ready')
+      debug.info('home', 'loadAt ready', {
+        fresh: next.freshBoxes.length,
+        boxes: next.boxes.length,
+        radiusKm: next.quality.radiusKm,
+      })
       if (next.freshBoxes.length === 0) {
         setMessage('Keine frischen Stationen gefunden. Probiere einen anderen Ort.')
       }
     } catch (error) {
       if (myLoad !== loadGen.current) return
+      debug.error('home', 'loadAt failed', error)
       setStatus('error')
       setMessage(formatError(error))
     }
@@ -69,9 +77,15 @@ export function HomePage() {
   const handleViewportIdle = useCallback(async (viewport: MapViewport) => {
     const gen = ++viewportGen.current
     const loadSnapshot = loadGen.current
+    const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
     setMapLoading(true)
+    debug.info('home', 'viewport idle → fetch', {
+      gen,
+      zoom: viewport.zoom,
+      center: viewport.center,
+      radiusKm,
+    })
     try {
-      const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
       const result = await fetchViewportBoxes(
         {
           center: viewport.center,
@@ -82,14 +96,24 @@ export function HomePage() {
             phenomenonRef.current === 'all' ? 'temperature' : phenomenonRef.current,
         },
       )
-      if (gen !== viewportGen.current) return
-      if (loadSnapshot !== loadGen.current) return
+      if (gen !== viewportGen.current) {
+        debug.warn('home', 'viewport Ergebnis verworfen (neuer Gen)', { gen })
+        return
+      }
+      if (loadSnapshot !== loadGen.current) {
+        debug.warn('home', 'viewport Ergebnis verworfen (neuer loadAt)', { gen })
+        return
+      }
       setMapBoxes(result.boxes)
       setMapFreshIds(result.freshIds)
       setMapRadiusKm(result.radiusKm)
+      debug.info('home', 'viewport applied', {
+        boxes: result.boxes.length,
+        radiusKm: result.radiusKm,
+      })
     } catch (error) {
       if (gen !== viewportGen.current) return
-      console.error('Viewport load failed', error)
+      debug.error('home', 'viewport load failed', error)
     } finally {
       if (gen === viewportGen.current) setMapLoading(false)
     }
@@ -190,16 +214,6 @@ export function HomePage() {
               </button>
             ))}
           </div>
-          {mapLoading && (
-            <StatusBanner>
-              {`Lade Stationen für den Kartenausschnitt${mapRadiusKm > 0 ? ` (~${Math.round(mapRadiusKm)} km)` : ''}…`}
-            </StatusBanner>
-          )}
-          {!mapLoading && mapRadiusKm > 0 && (
-            <p className="legend-note" style={{ margin: '0 0 0.5rem' }}>
-              {`Aktueller Laderadius: ~${Math.round(mapRadiusKm)} km (folgt Zoom & Ausschnitt).`}
-            </p>
-          )}
           <div className="map-stage">
             <SenseMap
               key={snapshot?.generatedAt ?? 'pending'}
@@ -211,6 +225,8 @@ export function HomePage() {
               selectedBoxId={selectedBoxId}
               onSelectBox={setSelectedBoxId}
               onViewportIdle={handleViewportIdle}
+              loading={mapLoading}
+              loadRadiusKm={mapRadiusKm || undefined}
             />
             <MapLegend phenomenon={phenomenon} pointCount={mapPoints || undefined} />
           </div>

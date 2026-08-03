@@ -1,5 +1,6 @@
 import { fetchBoxes } from '../api/boxes'
 import type { SenseBox } from '../api/types'
+import { debug } from '../debug/logger'
 import { classifySensor } from './phenomena'
 import { filterFreshBoxes } from './freshness'
 import { hasPopulatedMeasurements, hydrateBoxes } from './hydrate'
@@ -36,6 +37,13 @@ export async function fetchViewportBoxes(
   const hydrateLimit =
     options.hydrateLimit ?? Math.min(48, Math.max(20, Math.round(radiusKm / 4)))
 
+  debug.info('viewport', 'fetch start', {
+    center: viewport.center,
+    radiusKm,
+    preferPhenomenon: options.preferPhenomenon ?? null,
+    hydrateLimit,
+  })
+
   const data = await fetchBoxes({
     near: `${viewport.center.lon},${viewport.center.lat}`,
     maxDistance: Math.round(radiusKm * 1000),
@@ -53,10 +61,28 @@ export async function fetchViewportBoxes(
 
   const minSeparationKm = Math.max(3, radiusKm / 10)
   const targets = pickSpreadBoxes(pool, hydrateLimit, minSeparationKm)
-  const hydrated = await hydrateBoxes(targets, targets.length, 3)
+  debug.info('viewport', 'hydrate targets', {
+    listed: data.length,
+    fresh: fresh.length,
+    preferred: preferred.length,
+    targets: targets.length,
+    minSeparationKm: Number(minSeparationKm.toFixed(1)),
+  })
 
-  // Keep only successfully hydrated boxes so empty shells don't hide gaps.
+  const hydrated = await hydrateBoxes(targets, targets.length, 3)
   const valued = hydrated.filter((box) => hasPopulatedMeasurements(box))
+
+  const coords = valued.flatMap((box) => {
+    const c = box.currentLocation?.coordinates
+    return c ? [[c[0], c[1]] as [number, number]] : []
+  })
+  const lons = coords.map((c) => c[0])
+
+  debug.info('viewport', 'fetch done', {
+    valued: valued.length,
+    lonSpan: lons.length ? Number((Math.max(...lons) - Math.min(...lons)).toFixed(3)) : 0,
+    radiusKm,
+  })
 
   return {
     boxes: valued,

@@ -82,6 +82,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** wie oben; Hydrate mit Retry/Concurrency 3.
 - **Review:** Marker-Lon-Span nach Rauszoomen muss mehrere Grad betragen (nicht ~0.26° Berlin).
 
+## 2026-08-03 — Lade-Banner wackelt + MapLibre-Worker 404
+
+- **Research:** StatusBanner über der Karte verschob Layout (Fenster „wackeln“). Console: `maplibre-gl-worker.mjs` 404 — MapLibre v6 Worker wird von Vite nicht mit-emittiert.
+- **Ideate:** Ladezustand als Overlay im bestehenden Stats-Pill; Worker per `setWorkerUrl` + `?worker&url`; strukturierte `[osem]` Logs.
+- **Plan/Execute:** Overlay statt Banner, `setupMaplibre.ts`, `debug/logger.ts` in API/Viewport/Map/Hydrate.
+- **Review:** Kein Layout-Shift beim Nachladen; Worker-Asset im Build; Console zeigt `[osem] …` Trace.
+
 ## Offen
 
 - CORS der openSenseMap API ist für Browser-GET öffentlich; bei Änderungen Proxy über Netlify Functions prüfen.
