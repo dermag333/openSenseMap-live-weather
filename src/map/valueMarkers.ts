@@ -26,6 +26,8 @@ export function syncValueMarkers(
     const el = document.createElement('div')
     el.className = 'temp-marker'
     el.textContent = label
+    el.dataset.lon = String(lon)
+    el.dataset.lat = String(lat)
     const accent = stops ? colorForValue(stops, feature.properties.value) : undefined
     if (accent) {
       el.style.borderColor = accent

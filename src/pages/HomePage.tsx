@@ -31,22 +31,32 @@ export function HomePage() {
   const [mapLoading, setMapLoading] = useState(false)
   const [mapRadiusKm, setMapRadiusKm] = useState(0)
   const viewportGen = useRef(0)
+  const loadGen = useRef(0)
+  const phenomenonRef = useRef(phenomenon)
+  phenomenonRef.current = phenomenon
 
   const loadAt = useCallback(async (nextCenter: LonLat, label: string) => {
+    // Invalidate in-flight viewport fetches so they cannot overwrite this load.
+    viewportGen.current += 1
+    const myLoad = ++loadGen.current
     setStatus('loading')
     setMessage(null)
     setCenter(nextCenter)
     try {
       const next = await buildWeatherSnapshot(nextCenter, label)
+      if (myLoad !== loadGen.current) return
       setSnapshot(next)
-      setMapBoxes(next.boxes)
+      // Seed with hydrated fresh stations only; map viewport fetch fills the view.
+      setMapBoxes(next.freshBoxes)
       setMapFreshIds(next.freshBoxes.map((box) => box._id))
       setSelectedBoxId(next.freshBoxes[0]?._id)
+      setMapRadiusKm(next.quality.radiusKm)
       setStatus('ready')
       if (next.freshBoxes.length === 0) {
         setMessage('Keine frischen Stationen gefunden. Probiere einen anderen Ort.')
       }
     } catch (error) {
+      if (myLoad !== loadGen.current) return
       setStatus('error')
       setMessage(formatError(error))
     }
@@ -58,14 +68,22 @@ export function HomePage() {
 
   const handleViewportIdle = useCallback(async (viewport: MapViewport) => {
     const gen = ++viewportGen.current
+    const loadSnapshot = loadGen.current
     setMapLoading(true)
     try {
       const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
-      const result = await fetchViewportBoxes({
-        center: viewport.center,
-        radiusKm,
-      })
+      const result = await fetchViewportBoxes(
+        {
+          center: viewport.center,
+          radiusKm,
+        },
+        {
+          preferPhenomenon:
+            phenomenonRef.current === 'all' ? 'temperature' : phenomenonRef.current,
+        },
+      )
       if (gen !== viewportGen.current) return
+      if (loadSnapshot !== loadGen.current) return
       setMapBoxes(result.boxes)
       setMapFreshIds(result.freshIds)
       setMapRadiusKm(result.radiusKm)
@@ -202,7 +220,7 @@ export function HomePage() {
             </StatusBanner>
           )}
           <StationList
-            boxes={mapBoxes.filter((box) => mapFreshIds.includes(box._id))}
+            boxes={mapBoxes.filter((box) => mapFreshIds.includes(box._id)).slice(0, 40)}
             selectedBoxId={selectedBoxId}
             onSelect={setSelectedBoxId}
           />

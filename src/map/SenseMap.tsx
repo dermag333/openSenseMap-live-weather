@@ -138,21 +138,30 @@ export function SenseMap({
     const map = mapRef.current
     if (!map) return
 
-    if (!map.isStyleLoaded()) {
-      const onReady = () => paintFromRef(map)
-      map.once('load', onReady)
-      return () => {
-        map.off('load', onReady)
+    const paint = () => {
+      try {
+        paintFromRef(map)
+      } catch (error) {
+        console.error('Map paint failed', error)
       }
     }
 
-    paintFromRef(map)
+    // updateImage / setData can flip isStyleLoaded(); 'load' won't re-fire — use idle.
+    if (map.getSource(STATION_SOURCE) || map.isStyleLoaded()) {
+      paint()
+      return
+    }
+
+    map.once('idle', paint)
+    return () => {
+      map.off('idle', paint)
+    }
   }, [boxes, freshBoxIds, phenomenon, center, recenterKey])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !selectedBoxId || !map.isStyleLoaded()) return
-    const box = boxes.find((b) => b._id === selectedBoxId)
+    const box = dataRef.current.boxes.find((b) => b._id === selectedBoxId)
     const coords = box?.currentLocation?.coordinates
     if (!coords) return
     try {
@@ -164,7 +173,7 @@ export function SenseMap({
     } catch {
       // ignore
     }
-  }, [selectedBoxId, boxes])
+  }, [selectedBoxId])
 
   function paintFromRef(map: Map) {
     const current = dataRef.current
@@ -181,31 +190,32 @@ export function SenseMap({
 
     setStats({ points: heatPoints.length, pixels: raster?.pixels ?? 0 })
 
-    try {
-      addWeatherMapLayers(map)
-      const stationSource = map.getSource(STATION_SOURCE) as GeoJSONSource | undefined
-      if (!stationSource) return
+    addWeatherMapLayers(map)
+    const stationSource = map.getSource(STATION_SOURCE) as GeoJSONSource | undefined
+    if (!stationSource) return
 
-      stationSource.setData(stations)
+    stationSource.setData(stations)
+    // Markers first — heat raster updates must not block labels.
+    markersRef.current = syncValueMarkers(
+      map,
+      stations,
+      markersRef.current,
+      current.phenomenon !== 'all',
+      current.phenomenon,
+    )
+    try {
       setHeatRaster(map, raster)
       applyPhenomenonStyle(map, current.phenomenon)
-      markersRef.current = syncValueMarkers(
-        map,
-        stations,
-        markersRef.current,
-        current.phenomenon !== 'all',
-        current.phenomenon,
-      )
-
-      const key = recenterKey ?? ''
-      if (key && key !== fittedKeyRef.current) {
-        fittedKeyRef.current = key
-        fitToStations(map, heatPoints, current.center)
-      }
-      map.resize()
     } catch (error) {
-      console.error('Map paint failed', error)
+      console.error('Heat layer update failed', error)
     }
+
+    const key = recenterKey ?? ''
+    if (key && key !== fittedKeyRef.current) {
+      fittedKeyRef.current = key
+      fitToStations(map, heatPoints, current.center)
+    }
+    map.resize()
   }
 
   return (

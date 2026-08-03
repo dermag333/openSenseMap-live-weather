@@ -77,10 +77,10 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 
 ## 2026-08-03 — Rauszoomen lud keine Flächen-Daten
 
-- **Research:** Nutzer zooms auf Brandenburg/Polen-Maßstab; nur ein kleiner Cluster blieb. Ursache: `radiusKmForViewport` / `fetchViewportBoxes` hart auf **40 km** gedeckelt — Ausschnitt war optisch riesig, API-Radius winzig.
-- **Ideate:** Radius = sichtbarer Ausschnitt (bis ~220 km) + räumlich gestreute Hydration, damit nicht nur eine Stadt Messwerte bekommt.
-- **Plan/Execute:** Cap 220 km, `pickSpreadBoxes`, weichere Wärmefeld-Ränder.
-- **Review:** Weit rauszoomen muss Stationen über den sichtbaren Bereich verteilen, nicht nur den alten Suchpunkt.
+- **Research:** Radius war auf 40 km gedeckelt; danach Race `loadAt` vs Viewport; danach waren gestreute Boxen in React-State, aber Marker blieben Berlin — `updateImage` ließ `isStyleLoaded()` kurz false werden, erneutes Paint wartete auf `load` (kommt nicht wieder). Zusätzlich zooms `selectedBoxId`-Effect bei jedem `boxes`-Update zurück zur Auswahl.
+- **Ideate:** Radius ~220 km, Spread-Hydration, loadGen/viewportGen, Paint über Source/`idle`, Marker vor Heat, Select-Zoom nur bei ID-Wechsel.
+- **Plan/Execute:** wie oben; Hydrate mit Retry/Concurrency 3.
+- **Review:** Marker-Lon-Span nach Rauszoomen muss mehrere Grad betragen (nicht ~0.26° Berlin).
 
 ## Offen
 

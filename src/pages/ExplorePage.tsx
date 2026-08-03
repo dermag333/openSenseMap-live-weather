@@ -21,6 +21,8 @@ export function ExplorePage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const viewportGen = useRef(0)
+  const phenomenonRef = useRef(phenomenon)
+  phenomenonRef.current = phenomenon
 
   const jumpTo = useCallback((next: LonLat) => {
     setCenter(next)
@@ -33,10 +35,16 @@ export function ExplorePage() {
     setError(null)
     try {
       const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
-      const result = await fetchViewportBoxes({
-        center: viewport.center,
-        radiusKm,
-      })
+      const result = await fetchViewportBoxes(
+        {
+          center: viewport.center,
+          radiusKm,
+        },
+        {
+          preferPhenomenon:
+            phenomenonRef.current === 'all' ? undefined : phenomenonRef.current,
+        },
+      )
       if (gen !== viewportGen.current) return
       setBoxes(result.boxes)
       setFreshIds(result.freshIds)
