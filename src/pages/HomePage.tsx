@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Hero } from '../components/Hero'
 import { StatusBanner } from '../components/StatusBanner'
@@ -6,6 +6,7 @@ import { WeatherReportView } from '../components/WeatherReport'
 import { StationList } from '../components/StationList'
 import { MapLegend } from '../map/MapLegend'
 import { SenseMap } from '../map/SenseMap'
+import { boxesToGeoJson } from '../map/markers'
 import { buildWeatherSnapshot } from '../weather/buildWeather'
 import { detectUserLocation, geocodeCity } from '../weather/geocode'
 import type { LonLat, PhenomenonKey, WeatherSnapshot } from '../weather/types'
@@ -75,7 +76,15 @@ export function HomePage() {
   }
 
   const boxes = snapshot?.boxes ?? []
-  const freshIds = snapshot?.freshBoxes.map((b) => b._id) ?? []
+  const mapBoxes = snapshot?.freshBoxes ?? boxes
+  const freshIds = useMemo(
+    () => mapBoxes.map((box) => box._id),
+    [mapBoxes],
+  )
+  const mapPoints = useMemo(
+    () => boxesToGeoJson(mapBoxes, phenomenon, new Set(freshIds)).features.length,
+    [mapBoxes, phenomenon, freshIds],
+  )
 
   return (
     <>
@@ -136,23 +145,21 @@ export function HomePage() {
           <div className="map-stage">
             <SenseMap
               center={center}
-              boxes={snapshot?.freshBoxes ?? boxes}
+              boxes={mapBoxes}
               freshBoxIds={freshIds}
               phenomenon={phenomenon}
               selectedBoxId={selectedBoxId}
               onSelectBox={setSelectedBoxId}
             />
-            <MapLegend
-              phenomenon={phenomenon}
-              pointCount={
-                phenomenon === 'all'
-                  ? undefined
-                  : snapshot?.metrics[phenomenon]?.count
-              }
-            />
+            <MapLegend phenomenon={phenomenon} pointCount={mapPoints || undefined} />
           </div>
+          {status === 'ready' && phenomenon !== 'all' && mapPoints === 0 && (
+            <StatusBanner tone="warning">
+              Keine Kartenpunkte für diesen Filter — Messwerte konnten nicht zugeordnet werden.
+            </StatusBanner>
+          )}
           <StationList
-            boxes={snapshot?.freshBoxes ?? boxes}
+            boxes={mapBoxes}
             selectedBoxId={selectedBoxId}
             onSelect={setSelectedBoxId}
           />

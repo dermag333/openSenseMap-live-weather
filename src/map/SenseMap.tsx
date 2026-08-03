@@ -101,6 +101,7 @@ export function SenseMap({
     const map = mapRef.current
     if (!map) return
 
+    const freshKey = freshBoxIds.join(',')
     const stations = boxesToGeoJson(boxes, phenomenon, new Set(freshBoxIds))
     const heatPoints = stationHeatPoints(stations)
     const heat =
@@ -135,6 +136,8 @@ export function SenseMap({
         apply()
       }
     }
+    // freshKey captures identity of freshBoxIds without unstable array identity issues
+    void freshKey
   }, [boxes, freshBoxIds, phenomenon, center])
 
   useEffect(() => {

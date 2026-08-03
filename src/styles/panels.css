@@ -84,6 +84,11 @@
   gap: var(--space-2);
 }
 
+.map-stage {
+  position: relative;
+  isolation: isolate;
+}
+
 .map-frame {
   position: relative;
 }
