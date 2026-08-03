@@ -92,7 +92,7 @@ export function heatFillColorExpression(phenomenon: PhenomenonKey): unknown[] {
   return [
     'interpolate',
     ['linear'],
-    ['get', 'value'],
+    ['to-number', ['get', 'value']],
     ...scale.stops.flatMap(([stop, color]) => [stop, color]),
   ]
 }
