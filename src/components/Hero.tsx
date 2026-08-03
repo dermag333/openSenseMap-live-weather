@@ -27,7 +27,7 @@ export function Hero({
           center={center}
           boxes={boxes}
           freshBoxIds={freshBoxIds}
-          phenomenon="temperature"
+          phenomenon="all"
         />
       </div>
       <div className="hero-veil" />

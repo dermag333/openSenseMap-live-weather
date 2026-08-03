@@ -142,7 +142,14 @@ export function HomePage() {
               selectedBoxId={selectedBoxId}
               onSelectBox={setSelectedBoxId}
             />
-            <MapLegend phenomenon={phenomenon} />
+            <MapLegend
+              phenomenon={phenomenon}
+              pointCount={
+                phenomenon === 'all'
+                  ? undefined
+                  : snapshot?.metrics[phenomenon]?.count
+              }
+            />
           </div>
           <StationList
             boxes={snapshot?.freshBoxes ?? boxes}

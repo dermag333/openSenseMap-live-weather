@@ -6,7 +6,6 @@ import { heatFillColorExpression } from './heatGrid'
 export const STATION_SOURCE = 'senseboxes'
 export const HEAT_SOURCE = 'heat-grid'
 export const HEAT_LAYER = 'heat-fill'
-export const HEATMAP_LAYER = 'heat-glow'
 export const CIRCLE_LAYER = 'senseboxes-circle'
 export const LABEL_LAYER = 'senseboxes-label'
 
@@ -21,46 +20,26 @@ export function addWeatherMapLayers(map: Map) {
     data: { type: 'FeatureCollection', features: [] },
   })
 
-  // Soft glow from measurement points
-  map.addLayer({
-    id: HEATMAP_LAYER,
-    type: 'heatmap',
-    source: STATION_SOURCE,
-    layout: { visibility: 'none' },
-    paint: {
-      'heatmap-weight': [
-        'interpolate',
-        ['linear'],
-        ['get', 'value'],
-        -10, 0,
-        40, 1,
-      ],
-      'heatmap-intensity': 0.9,
-      'heatmap-radius': 42,
-      'heatmap-opacity': 0.55,
-      'heatmap-color': [
-        'interpolate',
-        ['linear'],
-        ['heatmap-density'],
-        0, 'rgba(43,92,255,0)',
-        0.2, 'rgba(43,92,255,0.45)',
-        0.45, 'rgba(43,181,154,0.55)',
-        0.7, 'rgba(227,161,91,0.65)',
-        1, 'rgba(224,122,108,0.8)',
-      ],
-    },
-  })
-
-  // Interpolated warmth/cold surface between stations
+  // Transparent interpolated warmth/cold surface
   map.addLayer({
     id: HEAT_LAYER,
     type: 'fill',
     source: HEAT_SOURCE,
     layout: { visibility: 'none' },
     paint: {
-      'fill-color': '#2bb59a',
-      'fill-opacity': 0.5,
-      'fill-outline-color': 'rgba(0,0,0,0)',
+      'fill-color': [
+        'interpolate',
+        ['linear'],
+        ['get', 'value'],
+        -10, '#2b5cff',
+        0, '#4aa3ff',
+        10, '#6fd6c0',
+        18, '#2bb59a',
+        24, '#e3a15b',
+        32, '#e07a6c',
+        38, '#c23b2e',
+      ],
+      'fill-opacity': 0.55,
     },
   })
 
@@ -69,7 +48,7 @@ export function addWeatherMapLayers(map: Map) {
     type: 'circle',
     source: STATION_SOURCE,
     paint: {
-      'circle-radius': 7,
+      'circle-radius': 8,
       'circle-color': '#1f7a6c',
       'circle-stroke-width': 2,
       'circle-stroke-color': '#ffffff',
@@ -82,10 +61,10 @@ export function addWeatherMapLayers(map: Map) {
     type: 'symbol',
     source: STATION_SOURCE,
     layout: {
-      'text-field': ['get', 'label'],
+      'text-field': ['to-string', ['get', 'label']],
       'text-size': 16,
       'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-      'text-offset': [0, -1.5],
+      'text-offset': [0, -1.55],
       'text-anchor': 'bottom',
       'text-allow-overlap': true,
       'text-ignore-placement': true,
@@ -94,9 +73,8 @@ export function addWeatherMapLayers(map: Map) {
     paint: {
       'text-color': '#ffffff',
       'text-halo-color': '#0d1f24',
-      'text-halo-width': 2.4,
+      'text-halo-width': 2.6,
     },
-    filter: ['has', 'label'],
   })
 }
 
@@ -113,10 +91,6 @@ export function applyPhenomenonStyle(map: Map, phenomenon: PhenomenonKey | 'all'
         heatFillColorExpression(phenomenon) as never,
       )
     }
-  }
-
-  if (map.getLayer(HEATMAP_LAYER)) {
-    map.setLayoutProperty(HEATMAP_LAYER, 'visibility', visibility)
   }
 
   if (map.getLayer(CIRCLE_LAYER)) {

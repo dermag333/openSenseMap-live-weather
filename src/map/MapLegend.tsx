@@ -4,9 +4,10 @@ import type { PhenomenonKey } from '../weather/types'
 
 type MapLegendProps = {
   phenomenon: PhenomenonKey | 'all'
+  pointCount?: number
 }
 
-export function MapLegend({ phenomenon }: MapLegendProps) {
+export function MapLegend({ phenomenon, pointCount }: MapLegendProps) {
   const scale = PHENOMENON_SCALES[phenomenon]
 
   if (phenomenon === 'all') {
@@ -34,13 +35,14 @@ export function MapLegend({ phenomenon }: MapLegendProps) {
       <strong>
         {scale.label}
         {scale.unit ? ` (${scale.unit})` : ''}
+        {typeof pointCount === 'number' ? ` · ${pointCount} Punkte` : ''}
       </strong>
       <div className="legend-gradient" style={gradient}>
         <span>{scale.stops[0][0]}</span>
         <span>{scale.stops[scale.stops.length - 1][0]}</span>
       </div>
       <p className="legend-note">
-        Transparente Flächen = interpolierte Wärme/Kälte · Zahlen = Messwerte an der Station.
+        Fläche = interpolierte Wärme/Kälte · Zahlen = Messwerte an der Station.
       </p>
     </div>
   )

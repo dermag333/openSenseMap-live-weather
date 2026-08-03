@@ -98,11 +98,14 @@ export function heatFillColorExpression(phenomenon: PhenomenonKey): unknown[] {
 }
 
 export function extractHeatPoints(
-  features: FeatureCollection['features'],
+  features: Array<{
+    geometry: { type: string; coordinates: number[] }
+    properties?: { hasValue?: number; value?: number } | null
+  }>,
 ): HeatPoint[] {
   return features.flatMap((feature) => {
     if (feature.geometry.type !== 'Point') return []
-    const props = feature.properties as { hasValue?: number; value?: number } | null
+    const props = feature.properties
     if (!props || props.hasValue !== 1 || typeof props.value !== 'number') return []
     const [lon, lat] = feature.geometry.coordinates
     return [{ lon, lat, value: props.value }]
