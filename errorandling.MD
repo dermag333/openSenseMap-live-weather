@@ -33,6 +33,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** Header in `geocode.ts`.
 - **Review:** Geocoding sollte mit gültigem UA funktionieren; bei 429 Rate-Limit in UI melden.
 
+## 2026-08-03 — Blank page / keine Kartenlayer
+
+- **Research:** Playwright: `Error: Style is not done loading.` — Map-Methoden vor Style-Load warfen und killten React (#root leer).
+- **Ideate:** Alle Map-Ops hinter `map.isStyleLoaded()` + try/catch; Daten über `dataRef` nach `load` painten.
+- **Plan/Execute:** SenseMap gehärtet; HTML-Marker + IDW-Fill bleiben.
+- **Review:** Seite rendert wieder; Temperatur zeigt Fläche + Zahlen.
+
 ## 2026-08-03 — Kartenfilter ohne Wärme-Layer / Zahlen
 
 - **Research:** Nutzer erwartet Zahlen an Messpunkten + transparenten Wärme-/Kälte-Layer. Symbol-Layer/Heatmap blieben unsichtbar; Server-IDW oft leer/422.

@@ -45,9 +45,10 @@ export function SenseMap({
   const mapRef = useRef<Map | null>(null)
   const markersRef = useRef<Marker[]>([])
   const onSelectRef = useRef(onSelectBox)
-  const pendingRef = useRef<null | (() => void)>(null)
+  const dataRef = useRef({ boxes, freshBoxIds, phenomenon, center })
   const [stats, setStats] = useState({ points: 0, cells: 0 })
   onSelectRef.current = onSelectBox
+  dataRef.current = { boxes, freshBoxIds, phenomenon, center }
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -62,30 +63,34 @@ export function SenseMap({
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
     mapRef.current = map
 
-    map.on('load', () => {
-      addWeatherMapLayers(map)
-      map.resize()
-      pendingRef.current?.()
-      pendingRef.current = null
+    const onLoad = () => {
+      try {
+        addWeatherMapLayers(map)
+        paintFromRef(map)
+        map.resize()
+      } catch (error) {
+        console.error('Map load failed', error)
+      }
+    }
 
-      map.on('click', CIRCLE_LAYER, (event: MapMouseEvent) => {
-        const feature = map.queryRenderedFeatures(event.point, {
-          layers: [CIRCLE_LAYER],
-        })[0]
-        const id = feature?.properties?.id
-        if (typeof id === 'string') onSelectRef.current?.(id)
-      })
+    map.on('load', onLoad)
 
-      map.on('mouseenter', CIRCLE_LAYER, () => {
-        map.getCanvas().style.cursor = 'pointer'
-      })
-      map.on('mouseleave', CIRCLE_LAYER, () => {
-        map.getCanvas().style.cursor = ''
-      })
+    map.on('click', CIRCLE_LAYER, (event: MapMouseEvent) => {
+      const feature = map.queryRenderedFeatures(event.point, {
+        layers: [CIRCLE_LAYER],
+      })[0]
+      const id = feature?.properties?.id
+      if (typeof id === 'string') onSelectRef.current?.(id)
+    })
+
+    map.on('mouseenter', CIRCLE_LAYER, () => {
+      map.getCanvas().style.cursor = 'pointer'
+    })
+    map.on('mouseleave', CIRCLE_LAYER, () => {
+      map.getCanvas().style.cursor = ''
     })
 
     return () => {
-      pendingRef.current = null
       for (const marker of markersRef.current) marker.remove()
       markersRef.current = []
       map.remove()
@@ -94,64 +99,74 @@ export function SenseMap({
   }, [])
 
   useEffect(() => {
-    mapRef.current?.easeTo({ center: [center.lon, center.lat], duration: 700 })
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+    try {
+      map.easeTo({ center: [center.lon, center.lat], duration: 700 })
+    } catch {
+      // style may still be settling
+    }
   }, [center.lat, center.lon])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
+    if (!map || !map.isStyleLoaded()) return
+    paintFromRef(map)
+  }, [boxes, freshBoxIds, phenomenon, center])
 
-    const freshKey = freshBoxIds.join(',')
-    const stations = boxesToGeoJson(boxes, phenomenon, new Set(freshBoxIds))
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !selectedBoxId || !map.isStyleLoaded()) return
+    const box = boxes.find((b) => b._id === selectedBoxId)
+    const coords = box?.currentLocation?.coordinates
+    if (!coords) return
+    try {
+      map.easeTo({
+        center: [coords[0], coords[1]],
+        zoom: Math.max(map.getZoom(), 12.5),
+        duration: 600,
+      })
+    } catch {
+      // ignore
+    }
+  }, [selectedBoxId, boxes])
+
+  function paintFromRef(map: Map) {
+    const current = dataRef.current
+    const stations = boxesToGeoJson(
+      current.boxes,
+      current.phenomenon,
+      new Set(current.freshBoxIds),
+    )
     const heatPoints = stationHeatPoints(stations)
     const heat =
-      phenomenon === 'all' || heatPoints.length === 0
+      current.phenomenon === 'all' || heatPoints.length === 0
         ? { type: 'FeatureCollection' as const, features: [] }
         : buildHeatGrid(heatPoints, 36, 36)
 
     setStats({ points: heatPoints.length, cells: heat.features.length })
 
-    const apply = () => {
+    try {
       addWeatherMapLayers(map)
       const stationSource = map.getSource(STATION_SOURCE) as GeoJSONSource | undefined
       const heatSource = map.getSource(HEAT_SOURCE) as GeoJSONSource | undefined
-      if (!stationSource || !heatSource) return false
+      if (!stationSource || !heatSource) return
 
       stationSource.setData(stations)
       heatSource.setData(heat)
-      applyPhenomenonStyle(map, phenomenon)
+      applyPhenomenonStyle(map, current.phenomenon)
       markersRef.current = syncValueMarkers(
         map,
         stations,
         markersRef.current,
-        phenomenon !== 'all',
+        current.phenomenon !== 'all',
       )
-      fitToStations(map, heatPoints, center)
+      fitToStations(map, heatPoints, current.center)
       map.resize()
-      return true
+    } catch (error) {
+      console.error('Map paint failed', error)
     }
-
-    if (!apply()) {
-      pendingRef.current = () => {
-        apply()
-      }
-    }
-    // freshKey captures identity of freshBoxIds without unstable array identity issues
-    void freshKey
-  }, [boxes, freshBoxIds, phenomenon, center])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !selectedBoxId) return
-    const box = boxes.find((b) => b._id === selectedBoxId)
-    const coords = box?.currentLocation?.coordinates
-    if (!coords) return
-    map.easeTo({
-      center: [coords[0], coords[1]],
-      zoom: Math.max(map.getZoom(), 12.5),
-      duration: 600,
-    })
-  }, [selectedBoxId, boxes])
+  }
 
   return (
     <div className="map-frame">
@@ -178,17 +193,21 @@ function stationHeatPoints(
 }
 
 function fitToStations(map: Map, points: HeatPoint[], fallback: LonLat) {
-  if (points.length === 0) {
-    map.easeTo({ center: [fallback.lon, fallback.lat], zoom: 11, duration: 500 })
-    return
+  try {
+    if (points.length === 0) {
+      map.easeTo({ center: [fallback.lon, fallback.lat], zoom: 11, duration: 500 })
+      return
+    }
+    if (points.length === 1) {
+      map.easeTo({ center: [points[0].lon, points[0].lat], zoom: 12.8, duration: 600 })
+      return
+    }
+    const bounds = points.reduce(
+      (b, p) => b.extend([p.lon, p.lat]),
+      new LngLatBounds([points[0].lon, points[0].lat], [points[0].lon, points[0].lat]),
+    )
+    map.fitBounds(bounds, { padding: 64, maxZoom: 12.8, duration: 700 })
+  } catch {
+    // ignore until style ready
   }
-  if (points.length === 1) {
-    map.easeTo({ center: [points[0].lon, points[0].lat], zoom: 12.8, duration: 600 })
-    return
-  }
-  const bounds = points.reduce(
-    (b, p) => b.extend([p.lon, p.lat]),
-    new LngLatBounds([points[0].lon, points[0].lat], [points[0].lon, points[0].lat]),
-  )
-  map.fitBounds(bounds, { padding: 64, maxZoom: 12.8, duration: 700 })
 }
