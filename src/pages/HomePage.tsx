@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Hero } from '../components/Hero'
 import { StatusBanner } from '../components/StatusBanner'
 import { WeatherReportView } from '../components/WeatherReport'
 import { StationList } from '../components/StationList'
 import { MapLegend } from '../map/MapLegend'
-import { SenseMap } from '../map/SenseMap'
+import { SenseMap, type MapViewport } from '../map/SenseMap'
 import { boxesToGeoJson } from '../map/markers'
+import { radiusKmForViewport } from '../weather/bbox'
 import { buildWeatherSnapshot } from '../weather/buildWeather'
+import { fetchViewportBoxes } from '../weather/fetchViewportBoxes'
 import { detectUserLocation, geocodeCity } from '../weather/geocode'
 import type { LonLat, PhenomenonKey, WeatherSnapshot } from '../weather/types'
+import type { SenseBox } from '../api/types'
 import { ApiError } from '../api/types'
 
 const DEFAULT_CENTER: LonLat = { lon: 13.405, lat: 52.52 }
@@ -23,6 +26,10 @@ export function HomePage() {
   const [message, setMessage] = useState<string | null>(null)
   const [selectedBoxId, setSelectedBoxId] = useState<string>()
   const [phenomenon, setPhenomenon] = useState<PhenomenonKey | 'all'>('temperature')
+  const [mapBoxes, setMapBoxes] = useState<SenseBox[]>([])
+  const [mapFreshIds, setMapFreshIds] = useState<string[]>([])
+  const [mapLoading, setMapLoading] = useState(false)
+  const viewportGen = useRef(0)
 
   const loadAt = useCallback(async (nextCenter: LonLat, label: string) => {
     setStatus('loading')
@@ -31,6 +38,8 @@ export function HomePage() {
     try {
       const next = await buildWeatherSnapshot(nextCenter, label)
       setSnapshot(next)
+      setMapBoxes(next.boxes)
+      setMapFreshIds(next.freshBoxes.map((box) => box._id))
       setSelectedBoxId(next.freshBoxes[0]?._id)
       setStatus('ready')
       if (next.freshBoxes.length === 0) {
@@ -45,6 +54,26 @@ export function HomePage() {
   useEffect(() => {
     void loadAt(DEFAULT_CENTER, 'Berlin')
   }, [loadAt])
+
+  const handleViewportIdle = useCallback(async (viewport: MapViewport) => {
+    const gen = ++viewportGen.current
+    setMapLoading(true)
+    try {
+      const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
+      const result = await fetchViewportBoxes({
+        center: viewport.center,
+        radiusKm,
+      })
+      if (gen !== viewportGen.current) return
+      setMapBoxes(result.boxes)
+      setMapFreshIds(result.freshIds)
+    } catch (error) {
+      if (gen !== viewportGen.current) return
+      console.error('Viewport load failed', error)
+    } finally {
+      if (gen === viewportGen.current) setMapLoading(false)
+    }
+  }, [])
 
   async function handleSearch(query: string) {
     setStatus('loading')
@@ -76,14 +105,13 @@ export function HomePage() {
   }
 
   const boxes = snapshot?.boxes ?? []
-  const mapBoxes = snapshot?.freshBoxes ?? boxes
-  const freshIds = useMemo(
-    () => mapBoxes.map((box) => box._id),
-    [mapBoxes],
+  const heroFreshIds = useMemo(
+    () => (snapshot?.freshBoxes ?? []).map((box) => box._id),
+    [snapshot],
   )
   const mapPoints = useMemo(
-    () => boxesToGeoJson(mapBoxes, phenomenon, new Set(freshIds)).features.length,
-    [mapBoxes, phenomenon, freshIds],
+    () => boxesToGeoJson(mapBoxes, phenomenon, new Set(mapFreshIds)).features.length,
+    [mapBoxes, phenomenon, mapFreshIds],
   )
 
   return (
@@ -91,7 +119,7 @@ export function HomePage() {
       <Hero
         center={center}
         boxes={boxes}
-        freshBoxIds={freshIds}
+        freshBoxIds={heroFreshIds}
         busy={status === 'loading'}
         onSearch={handleSearch}
         onLocate={handleLocate}
@@ -118,8 +146,8 @@ export function HomePage() {
       <section className="section" id="map">
         <h2>Karte & Stationen</h2>
         <p className="section-lead">
-          Unter den Messpunkten liegt eine transparente Wärme-/Kältefläche; darüber stehen die
-          Zahlen an den Stationen.
+          Zahlen an den Messpunkten, darunter die Wärme-/Kältefläche. Beim Verschieben oder Zoomen
+          lädt die Karte Stationen für den aktuellen Ausschnitt nach.
         </p>
         <div className="map-panel panel">
           <div className="map-toolbar" role="toolbar" aria-label="Phänomenfilter">
@@ -142,25 +170,30 @@ export function HomePage() {
               </button>
             ))}
           </div>
+          {mapLoading && (
+            <StatusBanner>Lade Stationen für den Kartenausschnitt…</StatusBanner>
+          )}
           <div className="map-stage">
             <SenseMap
               key={snapshot?.generatedAt ?? 'pending'}
               center={center}
+              recenterKey={snapshot?.generatedAt}
               boxes={mapBoxes}
-              freshBoxIds={freshIds}
+              freshBoxIds={mapFreshIds}
               phenomenon={phenomenon}
               selectedBoxId={selectedBoxId}
               onSelectBox={setSelectedBoxId}
+              onViewportIdle={handleViewportIdle}
             />
             <MapLegend phenomenon={phenomenon} pointCount={mapPoints || undefined} />
           </div>
-          {status === 'ready' && phenomenon !== 'all' && mapPoints === 0 && (
+          {status === 'ready' && !mapLoading && phenomenon !== 'all' && mapPoints === 0 && (
             <StatusBanner tone="warning">
-              Keine Kartenpunkte für diesen Filter — Messwerte konnten nicht zugeordnet werden.
+              Keine Messwerte in diesem Ausschnitt — Ort suchen, Standort nutzen oder weiter zoomen.
             </StatusBanner>
           )}
           <StationList
-            boxes={mapBoxes}
+            boxes={mapBoxes.filter((box) => mapFreshIds.includes(box._id))}
             selectedBoxId={selectedBoxId}
             onSelect={setSelectedBoxId}
           />

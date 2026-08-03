@@ -17,7 +17,8 @@ export const PHENOMENA: PhenomenonRule[] = [
     match: /temp|temperatur|temperature/i,
     exclude: /boden|soil|wasser|water|indoor/i,
     min: -25,
-    max: 45,
+    // Outdoor sensors in sun can read above air temp; keep below absurd spikes.
+    max: 55,
   },
   {
     key: 'humidity',

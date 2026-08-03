@@ -68,6 +68,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** `heatRaster.ts` + `setHeatRaster` in `mapLayers.ts`; Fill/Heatmap entfernt; Marker-Rand farblich nach Wert.
 - **Review:** Temperatur-Filter muss farbiges Wärmefeld + Zahlen an Messpunkten zeigen.
 
+## 2026-08-03 — Eigene Station fehlt / Karte lädt beim Zoomen nicht nach
+
+- **Research (RIPER-5):** Station `6a6f947115dace0007ab7210` (MAG_Wetterstation, outdoor, Nürnberg ~49.40/11.17) liefert live 45.87 °C in der API. Die Demo startet fest auf Berlin (`near` 10–18 km) — Station liegt ~380 km außerhalb. Zusätzlich verwarf der Temperaturfilter `max: 45` den Messwert. Karten-Pan/Zoom rief nie die API auf; Daten blieben an der Suche kleben.
+- **Ideate:** Viewport-`near`-Fetch (nicht langsames `bbox`) + Temperatur-Max anheben + Fit nur bei neuer Suche.
+- **Plan/Execute:** `fetchViewportBoxes.ts`, `onViewportIdle` in SenseMap, Home/Explore nachladen, `max` → 55 °C, Nürnberg-Shortcut in Explore.
+- **Review:** Nach Pan zur eigenen Adresse / „Mein Standort“ / Suche Nürnberg muss MAG mit Zahl + Wärmefeld erscheinen.
+
 ## Offen
 
 - CORS der openSenseMap API ist für Browser-GET öffentlich; bei Änderungen Proxy über Netlify Functions prüfen.

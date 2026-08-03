@@ -23,6 +23,12 @@ import { mapStyle } from './mapStyle'
 import { boxesToGeoJson } from './markers'
 import { syncValueMarkers } from './valueMarkers'
 
+export type MapViewport = {
+  center: LonLat
+  northEast: LonLat
+  zoom: number
+}
+
 type SenseMapProps = {
   center: LonLat
   boxes: SenseBox[]
@@ -30,6 +36,9 @@ type SenseMapProps = {
   phenomenon: PhenomenonKey | 'all'
   selectedBoxId?: string
   onSelectBox?: (boxId: string) => void
+  /** When this key changes, map re-fits to stations once (search / locate). */
+  recenterKey?: string
+  onViewportIdle?: (viewport: MapViewport) => void
   className?: string
   showStats?: boolean
 }
@@ -41,6 +50,8 @@ export function SenseMap({
   phenomenon,
   selectedBoxId,
   onSelectBox,
+  recenterKey,
+  onViewportIdle,
   className,
   showStats = true,
 }: SenseMapProps) {
@@ -48,9 +59,12 @@ export function SenseMap({
   const mapRef = useRef<Map | null>(null)
   const markersRef = useRef<Marker[]>([])
   const onSelectRef = useRef(onSelectBox)
+  const onViewportRef = useRef(onViewportIdle)
   const dataRef = useRef({ boxes, freshBoxIds, phenomenon, center })
+  const fittedKeyRef = useRef<string | null>(null)
   const [stats, setStats] = useState({ points: 0, pixels: 0 })
   onSelectRef.current = onSelectBox
+  onViewportRef.current = onViewportIdle
   dataRef.current = { boxes, freshBoxIds, phenomenon, center }
 
   useEffect(() => {
@@ -66,17 +80,35 @@ export function SenseMap({
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
     mapRef.current = map
 
+    let idleTimer = 0
+    const emitViewport = () => {
+      const bounds = map.getBounds()
+      const c = map.getCenter()
+      const ne = bounds.getNorthEast()
+      onViewportRef.current?.({
+        center: { lon: c.lng, lat: c.lat },
+        northEast: { lon: ne.lng, lat: ne.lat },
+        zoom: map.getZoom(),
+      })
+    }
+
     const onLoad = () => {
       try {
         addWeatherMapLayers(map)
         paintFromRef(map)
         map.resize()
+        window.clearTimeout(idleTimer)
+        idleTimer = window.setTimeout(emitViewport, 200)
       } catch (error) {
         console.error('Map load failed', error)
       }
     }
 
     map.on('load', onLoad)
+    map.on('moveend', () => {
+      window.clearTimeout(idleTimer)
+      idleTimer = window.setTimeout(emitViewport, 450)
+    })
 
     map.on('click', CIRCLE_LAYER, (event: MapMouseEvent) => {
       const feature = map.queryRenderedFeatures(event.point, {
@@ -94,22 +126,13 @@ export function SenseMap({
     })
 
     return () => {
+      window.clearTimeout(idleTimer)
       for (const marker of markersRef.current) marker.remove()
       markersRef.current = []
       map.remove()
       mapRef.current = null
     }
   }, [])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
-    try {
-      map.easeTo({ center: [center.lon, center.lat], duration: 700 })
-    } catch {
-      // style may still be settling
-    }
-  }, [center.lat, center.lon])
 
   useEffect(() => {
     const map = mapRef.current
@@ -124,7 +147,7 @@ export function SenseMap({
     }
 
     paintFromRef(map)
-  }, [boxes, freshBoxIds, phenomenon, center])
+  }, [boxes, freshBoxIds, phenomenon, center, recenterKey])
 
   useEffect(() => {
     const map = mapRef.current
@@ -173,7 +196,12 @@ export function SenseMap({
         current.phenomenon !== 'all',
         current.phenomenon,
       )
-      fitToStations(map, heatPoints, current.center)
+
+      const key = recenterKey ?? ''
+      if (key && key !== fittedKeyRef.current) {
+        fittedKeyRef.current = key
+        fitToStations(map, heatPoints, current.center)
+      }
       map.resize()
     } catch (error) {
       console.error('Map paint failed', error)

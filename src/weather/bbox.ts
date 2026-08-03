@@ -34,3 +34,22 @@ export function expandBBox(bbox: BBox, factor: number): BBox {
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
+
+/** Great-circle distance in km between two lon/lat points. */
+export function haversineKm(a: LonLat, b: LonLat): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLon = toRad(b.lon - a.lon)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+
+/** Radius that covers a map viewport from center to northeast corner. */
+export function radiusKmForViewport(center: LonLat, northEast: LonLat): number {
+  const raw = haversineKm(center, northEast) * 1.08
+  return Math.min(40, Math.max(2, raw))
+}
