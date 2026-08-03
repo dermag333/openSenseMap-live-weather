@@ -33,7 +33,15 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** Header in `geocode.ts`.
 - **Review:** Geocoding sollte mit gültigem UA funktionieren; bei 429 Rate-Limit in UI melden.
 
+## 2026-08-03 — Netlify CLI ohne Login blockiert
+
+- **Research:** `npx netlify-cli status` hing ohne Auth-Token / interaktives Login.
+- **Ideate:** GitHub Pages als sofort öffentliche Demo + netlify.toml für späteren Connect.
+- **Plan/Execute:** Pages-Workflow + `VITE_BASE` für Project-Pages; Netlify baut mit `VITE_BASE=/`.
+- **Review:** Issue #485 verweist auf Pages-URL.
+
 ## Offen
 
 - CORS der openSenseMap API ist für Browser-GET öffentlich; bei Änderungen Proxy über Netlify Functions prüfen.
 - Sehr große BBox-Antworten können langsam sein — ggf. `phenomenon`-Filter serverseitig nachziehen.
+- Netlify-Site manuell mit dem GitHub-Repo verbinden, sobald Netlify-Account freigeschaltet ist.

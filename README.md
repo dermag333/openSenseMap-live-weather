@@ -40,6 +40,12 @@ npm run build
 npm run preview
 ```
 
+## Hosting
+
+- **GitHub Pages:** https://dermag333.github.io/openSenseMap-live-weather/
+- **Netlify:** Repo verbinden oder `netlify.toml` nutzen (`VITE_BASE=/` für Root-Deploy)
+- Upstream-Proposal: https://github.com/sensebox/openSenseMap/issues/485
+
 ## Beitrag / Upstream
 
 Offizielle Repos: [sensebox/openSenseMap](https://github.com/sensebox/openSenseMap), [sensebox/openSenseMap-API](https://github.com/sensebox/openSenseMap-API).
