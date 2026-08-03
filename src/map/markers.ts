@@ -1,6 +1,6 @@
 import type { SenseBox } from '../api/types'
 import type { PhenomenonKey } from '../weather/types'
-import { classifySensor } from '../weather/phenomena'
+import { classifySensor, PHENOMENA } from '../weather/phenomena'
 import { formatValueLabel, PHENOMENON_SCALES } from './colorScales'
 import type { FeatureCollection, Point } from 'geojson'
 
@@ -21,6 +21,7 @@ export function boxesToGeoJson(
   freshIds: Set<string>,
 ): FeatureCollection<Point, MarkerProps> {
   const scaleUnit = phenomenon === 'all' ? '' : PHENOMENON_SCALES[phenomenon].unit
+  const rule = phenomenon === 'all' ? undefined : PHENOMENA.find((item) => item.key === phenomenon)
 
   const features = boxes.flatMap((box) => {
     const coords = box.currentLocation?.coordinates
@@ -35,7 +36,10 @@ export function boxesToGeoJson(
       const measurement = sensor?.lastMeasurement
       if (measurement && typeof measurement === 'object' && 'value' in measurement) {
         const parsed = Number.parseFloat(measurement.value)
-        if (Number.isFinite(parsed)) {
+        const inRange =
+          Number.isFinite(parsed) &&
+          (!rule || (parsed >= rule.min && parsed <= rule.max))
+        if (inRange) {
           value = parsed
           unit = phenomenon === 'pressure' ? 'hPa' : sensor?.unit || scaleUnit
           hasValue = 1
@@ -43,7 +47,6 @@ export function boxesToGeoJson(
       }
     }
 
-    // When filtering a phenomenon, skip stations without that measurement.
     if (phenomenon !== 'all' && hasValue === 0) return []
 
     return [
