@@ -8,6 +8,7 @@ import {
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { SenseBox } from '../api/types'
 import type { LonLat, PhenomenonKey } from '../weather/types'
+import { circleColorExpression } from './colorScales'
 import { mapStyle } from './mapStyle'
 import { boxesToGeoJson } from './markers'
 
@@ -23,6 +24,7 @@ type SenseMapProps = {
 
 const SOURCE_ID = 'senseboxes'
 const LAYER_ID = 'senseboxes-circle'
+const LABEL_ID = 'senseboxes-label'
 
 export function SenseMap({
   center,
@@ -62,17 +64,39 @@ export function SenseMap({
         type: 'circle',
         source: SOURCE_ID,
         paint: {
-          'circle-radius': ['case', ['boolean', ['get', 'fresh'], false], 8, 5],
-          'circle-color': [
+          'circle-radius': [
             'case',
-            ['boolean', ['get', 'fresh'], false],
-            '#1f7a6c',
-            '#8a9aa3',
+            ['==', ['get', 'hasValue'], 1],
+            9,
+            ['==', ['get', 'fresh'], 1],
+            7,
+            5,
           ],
+          'circle-color': '#8a9aa3',
           'circle-stroke-width': 2,
           'circle-stroke-color': '#f4f7f5',
-          'circle-opacity': 0.92,
+          'circle-opacity': 0.95,
         },
+      })
+
+      map.addLayer({
+        id: LABEL_ID,
+        type: 'symbol',
+        source: SOURCE_ID,
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-offset': [0, 1.15],
+          'text-anchor': 'top',
+          'text-allow-overlap': false,
+        },
+        paint: {
+          'text-color': '#eef6f3',
+          'text-halo-color': '#0d1f24',
+          'text-halo-width': 1.4,
+        },
+        filter: ['==', ['get', 'hasValue'], 1],
       })
 
       map.on('click', LAYER_ID, (event: MapMouseEvent) => {
@@ -109,6 +133,20 @@ export function SenseMap({
     const apply = () => {
       const source = map.getSource(SOURCE_ID) as GeoJSONSource | undefined
       source?.setData(data)
+      if (map.getLayer(LAYER_ID)) {
+        map.setPaintProperty(
+          LAYER_ID,
+          'circle-color',
+          circleColorExpression(phenomenon) as never,
+        )
+      }
+      if (map.getLayer(LABEL_ID)) {
+        map.setLayoutProperty(
+          LABEL_ID,
+          'visibility',
+          phenomenon === 'all' ? 'none' : 'visible',
+        )
+      }
     }
 
     if (map.isStyleLoaded()) apply()

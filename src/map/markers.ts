@@ -1,15 +1,18 @@
 import type { SenseBox } from '../api/types'
 import type { PhenomenonKey } from '../weather/types'
 import { classifySensor } from '../weather/phenomena'
+import { formatValueLabel, PHENOMENON_SCALES } from './colorScales'
 import type { FeatureCollection, Point } from 'geojson'
 
 export type MarkerProps = {
   id: string
   name: string
   exposure?: string
-  fresh: boolean
-  value?: number
-  unit?: string
+  fresh: number
+  hasValue: number
+  value: number
+  unit: string
+  label: string
 }
 
 export function boxesToGeoJson(
@@ -17,21 +20,31 @@ export function boxesToGeoJson(
   phenomenon: PhenomenonKey | 'all',
   freshIds: Set<string>,
 ): FeatureCollection<Point, MarkerProps> {
+  const scaleUnit = phenomenon === 'all' ? '' : PHENOMENON_SCALES[phenomenon].unit
+
   const features = boxes.flatMap((box) => {
     const coords = box.currentLocation?.coordinates
     if (!coords || coords.length < 2) return []
 
-    let value: number | undefined
-    let unit: string | undefined
+    let value = Number.NaN
+    let unit = scaleUnit
+    let hasValue = 0
 
     if (phenomenon !== 'all') {
       const sensor = box.sensors?.find((s) => classifySensor(s)?.key === phenomenon)
       const measurement = sensor?.lastMeasurement
       if (measurement && typeof measurement === 'object' && 'value' in measurement) {
-        value = Number.parseFloat(measurement.value)
-        unit = sensor?.unit
+        const parsed = Number.parseFloat(measurement.value)
+        if (Number.isFinite(parsed)) {
+          value = parsed
+          unit = phenomenon === 'pressure' ? 'hPa' : sensor?.unit || scaleUnit
+          hasValue = 1
+        }
       }
     }
+
+    // When filtering a phenomenon, skip stations without that measurement.
+    if (phenomenon !== 'all' && hasValue === 0) return []
 
     return [
       {
@@ -44,9 +57,11 @@ export function boxesToGeoJson(
           id: box._id,
           name: box.name,
           exposure: box.exposure,
-          fresh: freshIds.has(box._id),
-          value: Number.isFinite(value) ? value : undefined,
+          fresh: freshIds.has(box._id) ? 1 : 0,
+          hasValue,
+          value: hasValue ? value : 0,
           unit,
+          label: hasValue ? formatValueLabel(value, unit) : '',
         },
       },
     ]

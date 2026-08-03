@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchBoxes } from '../api/boxes'
 import { SenseMap } from '../map/SenseMap'
+import { MapLegend } from '../map/MapLegend'
 import { StationList } from '../components/StationList'
 import { StatusBanner } from '../components/StatusBanner'
 import { filterFreshBoxes } from '../weather/freshness'
@@ -115,6 +116,7 @@ export function ExplorePage() {
           onSelectBox={setSelectedBoxId}
           className="sense-map"
         />
+        <MapLegend phenomenon={phenomenon} />
 
         <StationList boxes={boxes} selectedBoxId={selectedBoxId} onSelect={setSelectedBoxId} />
         {selectedBoxId && (

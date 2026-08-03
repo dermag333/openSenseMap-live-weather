@@ -1,6 +1,7 @@
 export const mapStyle = {
   version: 8 as const,
   name: 'osm-bright-lite',
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
     carto: {
       type: 'raster' as const,

@@ -4,6 +4,7 @@ import { Hero } from '../components/Hero'
 import { StatusBanner } from '../components/StatusBanner'
 import { WeatherReportView } from '../components/WeatherReport'
 import { StationList } from '../components/StationList'
+import { MapLegend } from '../map/MapLegend'
 import { SenseMap } from '../map/SenseMap'
 import { buildWeatherSnapshot } from '../weather/buildWeather'
 import { detectUserLocation, geocodeCity } from '../weather/geocode'
@@ -108,7 +109,8 @@ export function HomePage() {
       <section className="section" id="map">
         <h2>Karte & Stationen</h2>
         <p className="section-lead">
-          Frische Stationen sind hervorgehoben. Wähle eine senseBox für Details.
+          Filter steuern Farbe und Werte auf der Karte. Frische Stationen ohne Filter sind grün
+          hervorgehoben.
         </p>
         <div className="map-panel panel">
           <div className="map-toolbar" role="toolbar" aria-label="Phänomenfilter">
@@ -131,14 +133,17 @@ export function HomePage() {
               </button>
             ))}
           </div>
-          <SenseMap
-            center={center}
-            boxes={boxes}
-            freshBoxIds={freshIds}
-            phenomenon={phenomenon}
-            selectedBoxId={selectedBoxId}
-            onSelectBox={setSelectedBoxId}
-          />
+          <div className="map-stage">
+            <SenseMap
+              center={center}
+              boxes={boxes}
+              freshBoxIds={freshIds}
+              phenomenon={phenomenon}
+              selectedBoxId={selectedBoxId}
+              onSelectBox={setSelectedBoxId}
+            />
+            <MapLegend phenomenon={phenomenon} />
+          </div>
           <StationList
             boxes={snapshot?.freshBoxes ?? boxes}
             selectedBoxId={selectedBoxId}
