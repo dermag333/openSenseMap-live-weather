@@ -1,0 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Sora:wght@400;500;600&display=swap');
+@import './tokens.css';
+@import './animations.css';
+@import './base.css';
+@import './shell.css';
+@import './panels.css';

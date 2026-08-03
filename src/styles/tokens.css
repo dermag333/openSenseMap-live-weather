@@ -1,0 +1,23 @@
+:root {
+  --bg-deep: #0d1f24;
+  --bg-mid: #143038;
+  --bg-soft: #1c3d46;
+  --fog: rgba(214, 232, 226, 0.08);
+  --ink: #eef6f3;
+  --ink-muted: #a9c0bb;
+  --accent-solid: #2bb59a;
+  --accent-warm: #e3a15b;
+  --danger: #e07a6c;
+  --card: rgba(15, 36, 42, 0.72);
+  --stroke: rgba(238, 246, 243, 0.14);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --radius: 18px;
+  --font-display: 'Fraunces', 'Palatino Linotype', Palatino, serif;
+  --font-body: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+  --space-5: 4rem;
+  --max: 1120px;
+}
