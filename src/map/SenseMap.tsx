@@ -10,12 +10,13 @@ import {
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { SenseBox } from '../api/types'
 import type { LonLat, PhenomenonKey } from '../weather/types'
-import { buildHeatGrid, type HeatPoint } from './heatGrid'
+import type { HeatPoint } from './heatGrid'
+import { buildHeatRaster } from './heatRaster'
 import {
   addWeatherMapLayers,
   applyPhenomenonStyle,
   CIRCLE_LAYER,
-  HEAT_SOURCE,
+  setHeatRaster,
   STATION_SOURCE,
 } from './mapLayers'
 import { mapStyle } from './mapStyle'
@@ -48,7 +49,7 @@ export function SenseMap({
   const markersRef = useRef<Marker[]>([])
   const onSelectRef = useRef(onSelectBox)
   const dataRef = useRef({ boxes, freshBoxIds, phenomenon, center })
-  const [stats, setStats] = useState({ points: 0, cells: 0 })
+  const [stats, setStats] = useState({ points: 0, pixels: 0 })
   onSelectRef.current = onSelectBox
   dataRef.current = { boxes, freshBoxIds, phenomenon, center }
 
@@ -150,27 +151,27 @@ export function SenseMap({
       new Set(current.freshBoxIds),
     )
     const heatPoints = stationHeatPoints(stations)
-    const heat =
+    const raster =
       current.phenomenon === 'all' || heatPoints.length === 0
-        ? { type: 'FeatureCollection' as const, features: [] }
-        : buildHeatGrid(heatPoints, 36, 36)
+        ? null
+        : buildHeatRaster(heatPoints, current.phenomenon)
 
-    setStats({ points: heatPoints.length, cells: heat.features.length })
+    setStats({ points: heatPoints.length, pixels: raster?.pixels ?? 0 })
 
     try {
       addWeatherMapLayers(map)
       const stationSource = map.getSource(STATION_SOURCE) as GeoJSONSource | undefined
-      const heatSource = map.getSource(HEAT_SOURCE) as GeoJSONSource | undefined
-      if (!stationSource || !heatSource) return
+      if (!stationSource) return
 
       stationSource.setData(stations)
-      heatSource.setData(heat)
+      setHeatRaster(map, raster)
       applyPhenomenonStyle(map, current.phenomenon)
       markersRef.current = syncValueMarkers(
         map,
         stations,
         markersRef.current,
         current.phenomenon !== 'all',
+        current.phenomenon,
       )
       fitToStations(map, heatPoints, current.center)
       map.resize()
@@ -186,7 +187,7 @@ export function SenseMap({
         <div className="map-live-stats" aria-live="polite">
           {phenomenon === 'all'
             ? `${boxes.length} Stationen`
-            : `${stats.points} Messwerte · ${stats.cells} Wärmezellen`}
+            : `${stats.points} Messwerte · Wärmefeld aktiv`}
         </div>
       )}
     </div>

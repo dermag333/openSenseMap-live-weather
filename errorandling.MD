@@ -61,6 +61,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** Pages-Workflow + `VITE_BASE` für Project-Pages; Netlify baut mit `VITE_BASE=/`.
 - **Review:** Issue #485 verweist auf Pages-URL.
 
+## 2026-08-03 — Wärme-Layer unsichtbar trotz „Wärmezellen“
+
+- **Research:** HTML-Temperaturzahlen waren sichtbar; Legende/Stats meldeten 1296 Wärmezellen, aber die Fläche blieb optisch weiß. MapLibre GeoJSON-Fill + Heatmap auf Raster-Basemap malten keine wahrnehmbare Farbe (WebGL-Screenshot ohne preserveDrawingBuffer bestätigt keine bunten Pixel).
+- **Ideate:** Statt Fill-Polygone ein clientseitiges IDW-Canvas → MapLibre `image`/`raster`-Layer mit echter Alpha-Farbe zwischen den Stationen.
+- **Plan/Execute:** `heatRaster.ts` + `setHeatRaster` in `mapLayers.ts`; Fill/Heatmap entfernt; Marker-Rand farblich nach Wert.
+- **Review:** Temperatur-Filter muss farbiges Wärmefeld + Zahlen an Messpunkten zeigen.
+
 ## Offen
 
 - CORS der openSenseMap API ist für Browser-GET öffentlich; bei Änderungen Proxy über Netlify Functions prüfen.
