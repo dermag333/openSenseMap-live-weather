@@ -89,6 +89,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** Overlay statt Banner, `setupMaplibre.ts`, `debug/logger.ts` in API/Viewport/Map/Hydrate.
 - **Review:** Kein Layout-Shift beim Nachladen; Worker-Asset im Build; Console zeigt `[osem] …` Trace.
 
+## 2026-08-03 — Karte leer: parallele /boxes-Timeouts
+
+- **Research (konsole.md):** Mehrere `GET /boxes` parallel (loadAt + wiederholte Viewport-Fetches + zweites Hero-MapLibre). Berlin-near braucht ~44 s; bei 45 s Timeout und Request-Sturm → alles scheitert, `paint` mit `boxes: 0`.
+- **Ideate:** `/boxes` serialisieren, Timeout 90 s, Viewport abbrechen/skippen während loadAt, Hero ohne zweite Karte, Radius-Cap ~40 km (API-Limit praktisch), bei Fehler alte Marker behalten.
+- **Plan/Execute:** `api/client` Queue + AbortSignal; Hero CSS-only; HomePage Gate/Abort/Dedupe; outdoor-Filter.
+- **Review:** Ein `/boxes` nach dem anderen; Konsole ohne Timeout-Kaskade; Temperatur-Marker wieder sichtbar.
+
 ## Offen
 
 - CORS der openSenseMap API ist für Browser-GET öffentlich; bei Änderungen Proxy über Netlify Functions prüfen.

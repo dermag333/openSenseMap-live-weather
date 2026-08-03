@@ -7,11 +7,11 @@ import { generateReport } from './report'
 import type { LonLat, WeatherOptions, WeatherQuality, WeatherSnapshot } from './types'
 
 const DEFAULTS = {
-  radiusKm: 10,
+  radiusKm: 8,
   freshnessHours: 6,
   preferOutdoor: true,
   minStations: 2,
-  hydrateLimit: 35,
+  hydrateLimit: 28,
 }
 
 export async function buildWeatherSnapshot(
@@ -106,5 +106,6 @@ async function fetchNearbyBoxes(center: LonLat, radiusKm: number) {
   return fetchBoxes({
     near: `${center.lon},${center.lat}`,
     maxDistance: Math.round(radiusKm * 1000),
+    exposure: 'outdoor',
   })
 }

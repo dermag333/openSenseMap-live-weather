@@ -1,36 +1,18 @@
-import { SenseMap } from '../map/SenseMap'
 import { LocationSearch } from './LocationSearch'
 import type { LonLat } from '../weather/types'
-import type { SenseBox } from '../api/types'
 
 type HeroProps = {
   center: LonLat
-  boxes: SenseBox[]
-  freshBoxIds: string[]
   busy?: boolean
   onSearch: (query: string) => void
   onLocate: () => void
 }
 
-export function Hero({
-  center,
-  boxes,
-  freshBoxIds,
-  busy,
-  onSearch,
-  onLocate,
-}: HeroProps) {
+/** Decorative hero — no second MapLibre instance (avoids duplicate API/viewport load). */
+export function Hero({ busy, onSearch, onLocate }: HeroProps) {
   return (
     <section className="hero">
-      <div className="hero-map" aria-hidden="true">
-        <SenseMap
-          center={center}
-          boxes={boxes}
-          freshBoxIds={freshBoxIds}
-          phenomenon="all"
-          showStats={false}
-        />
-      </div>
+      <div className="hero-map" aria-hidden="true" />
       <div className="hero-veil" />
       <div className="hero-content">
         <h1 className="hero-brand anim-rise">

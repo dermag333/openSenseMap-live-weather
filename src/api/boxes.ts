@@ -18,14 +18,17 @@ function toParams(query: BoxesQuery): Record<string, string | number | boolean |
   }
 }
 
-export async function fetchBoxes(query: BoxesQuery = {}): Promise<SenseBox[]> {
-  const data = await apiGet<SenseBox[] | SenseBox>('/boxes', toParams(query))
+export async function fetchBoxes(
+  query: BoxesQuery = {},
+  signal?: AbortSignal,
+): Promise<SenseBox[]> {
+  const data = await apiGet<SenseBox[] | SenseBox>('/boxes', toParams(query), { signal })
   if (!data) return []
   return Array.isArray(data) ? data : [data]
 }
 
-export async function fetchBox(boxId: string): Promise<SenseBox> {
-  return apiGet<SenseBox>(`/boxes/${encodeURIComponent(boxId)}`)
+export async function fetchBox(boxId: string, signal?: AbortSignal): Promise<SenseBox> {
+  return apiGet<SenseBox>(`/boxes/${encodeURIComponent(boxId)}`, undefined, { signal })
 }
 
 export async function fetchBoxSensors(boxId: string): Promise<SenseBox> {

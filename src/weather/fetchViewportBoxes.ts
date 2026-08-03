@@ -18,7 +18,8 @@ export type ViewportBoxesResult = {
   radiusKm: number
 }
 
-const MAX_RADIUS_KM = 220
+/** Dense regions (Berlin) time out beyond ~40 km; keep fetches reliable. */
+const MAX_RADIUS_KM = 40
 
 /**
  * Load stations covering the visible map (near + distance).
@@ -30,24 +31,30 @@ export async function fetchViewportBoxes(
     freshnessHours?: number
     hydrateLimit?: number
     preferPhenomenon?: PhenomenonKey
+    signal?: AbortSignal
   } = {},
 ): Promise<ViewportBoxesResult> {
   const radiusKm = Math.min(MAX_RADIUS_KM, Math.max(2, viewport.radiusKm))
   const freshnessHours = options.freshnessHours ?? 12
   const hydrateLimit =
-    options.hydrateLimit ?? Math.min(48, Math.max(20, Math.round(radiusKm / 4)))
+    options.hydrateLimit ?? Math.min(36, Math.max(16, Math.round(radiusKm / 2)))
 
   debug.info('viewport', 'fetch start', {
     center: viewport.center,
     radiusKm,
+    requestedRadiusKm: viewport.radiusKm,
     preferPhenomenon: options.preferPhenomenon ?? null,
     hydrateLimit,
   })
 
-  const data = await fetchBoxes({
-    near: `${viewport.center.lon},${viewport.center.lat}`,
-    maxDistance: Math.round(radiusKm * 1000),
-  })
+  const data = await fetchBoxes(
+    {
+      near: `${viewport.center.lon},${viewport.center.lat}`,
+      maxDistance: Math.round(radiusKm * 1000),
+      exposure: 'outdoor',
+    },
+    options.signal,
+  )
 
   const fresh = filterFreshBoxes(data, freshnessHours, false)
   const preferred = options.preferPhenomenon
@@ -59,7 +66,7 @@ export async function fetchViewportBoxes(
     : fresh
   const pool = preferred.length >= 8 ? preferred : fresh
 
-  const minSeparationKm = Math.max(3, radiusKm / 10)
+  const minSeparationKm = Math.max(2, radiusKm / 10)
   const targets = pickSpreadBoxes(pool, hydrateLimit, minSeparationKm)
   debug.info('viewport', 'hydrate targets', {
     listed: data.length,
@@ -69,7 +76,7 @@ export async function fetchViewportBoxes(
     minSeparationKm: Number(minSeparationKm.toFixed(1)),
   })
 
-  const hydrated = await hydrateBoxes(targets, targets.length, 3)
+  const hydrated = await hydrateBoxes(targets, targets.length, 3, options.signal)
   const valued = hydrated.filter((box) => hasPopulatedMeasurements(box))
 
   const coords = valued.flatMap((box) => {

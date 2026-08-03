@@ -7,7 +7,7 @@ import { StationList } from '../components/StationList'
 import { MapLegend } from '../map/MapLegend'
 import { SenseMap, type MapViewport } from '../map/SenseMap'
 import { boxesToGeoJson } from '../map/markers'
-import { radiusKmForViewport } from '../weather/bbox'
+import { haversineKm, radiusKmForViewport } from '../weather/bbox'
 import { buildWeatherSnapshot } from '../weather/buildWeather'
 import { fetchViewportBoxes } from '../weather/fetchViewportBoxes'
 import { detectUserLocation, geocodeCity } from '../weather/geocode'
@@ -33,15 +33,21 @@ export function HomePage() {
   const [mapRadiusKm, setMapRadiusKm] = useState(0)
   const viewportGen = useRef(0)
   const loadGen = useRef(0)
+  const viewportAbort = useRef<AbortController | null>(null)
+  const lastViewport = useRef<{ center: LonLat; radiusKm: number } | null>(null)
+  const statusRef = useRef(status)
   const phenomenonRef = useRef(phenomenon)
+  statusRef.current = status
   phenomenonRef.current = phenomenon
 
   const loadAt = useCallback(async (nextCenter: LonLat, label: string) => {
+    viewportAbort.current?.abort()
     viewportGen.current += 1
     const myLoad = ++loadGen.current
     setStatus('loading')
     setMessage(null)
     setCenter(nextCenter)
+    setMapLoading(false)
     debug.info('home', 'loadAt start', { nextCenter, label, myLoad })
     try {
       const next = await buildWeatherSnapshot(nextCenter, label)
@@ -53,6 +59,7 @@ export function HomePage() {
       setMapBoxes(next.freshBoxes)
       setMapFreshIds(next.freshBoxes.map((box) => box._id))
       setMapRadiusKm(next.quality.radiusKm)
+      lastViewport.current = { center: nextCenter, radiusKm: next.quality.radiusKm }
       setStatus('ready')
       debug.info('home', 'loadAt ready', {
         fresh: next.freshBoxes.length,
@@ -75,9 +82,31 @@ export function HomePage() {
   }, [loadAt])
 
   const handleViewportIdle = useCallback(async (viewport: MapViewport) => {
+    if (statusRef.current === 'loading') {
+      debug.debug('home', 'viewport übersprungen (loadAt läuft)')
+      return
+    }
+
+    const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
+    const prev = lastViewport.current
+    if (
+      prev &&
+      haversineKm(prev.center, viewport.center) < Math.max(1.5, prev.radiusKm * 0.15) &&
+      Math.abs(prev.radiusKm - Math.min(40, radiusKm)) < 4
+    ) {
+      debug.debug('home', 'viewport übersprungen (kaum verändert)', {
+        movedKm: Number(haversineKm(prev.center, viewport.center).toFixed(2)),
+        radiusKm,
+      })
+      return
+    }
+
+    viewportAbort.current?.abort()
+    const controller = new AbortController()
+    viewportAbort.current = controller
     const gen = ++viewportGen.current
     const loadSnapshot = loadGen.current
-    const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
+
     setMapLoading(true)
     debug.info('home', 'viewport idle → fetch', {
       gen,
@@ -85,6 +114,7 @@ export function HomePage() {
       center: viewport.center,
       radiusKm,
     })
+
     try {
       const result = await fetchViewportBoxes(
         {
@@ -94,26 +124,26 @@ export function HomePage() {
         {
           preferPhenomenon:
             phenomenonRef.current === 'all' ? 'temperature' : phenomenonRef.current,
+          signal: controller.signal,
         },
       )
-      if (gen !== viewportGen.current) {
-        debug.warn('home', 'viewport Ergebnis verworfen (neuer Gen)', { gen })
-        return
-      }
-      if (loadSnapshot !== loadGen.current) {
-        debug.warn('home', 'viewport Ergebnis verworfen (neuer loadAt)', { gen })
-        return
-      }
+      if (gen !== viewportGen.current) return
+      if (loadSnapshot !== loadGen.current) return
       setMapBoxes(result.boxes)
       setMapFreshIds(result.freshIds)
       setMapRadiusKm(result.radiusKm)
+      lastViewport.current = { center: viewport.center, radiusKm: result.radiusKm }
       debug.info('home', 'viewport applied', {
         boxes: result.boxes.length,
         radiusKm: result.radiusKm,
       })
     } catch (error) {
       if (gen !== viewportGen.current) return
-      debug.error('home', 'viewport load failed', error)
+      if (error instanceof ApiError && error.status === 499) {
+        debug.debug('home', 'viewport aborted')
+        return
+      }
+      debug.error('home', 'viewport load failed — behalte bisherige Marker', error)
     } finally {
       if (gen === viewportGen.current) setMapLoading(false)
     }
@@ -148,11 +178,6 @@ export function HomePage() {
     }
   }
 
-  const boxes = snapshot?.boxes ?? []
-  const heroFreshIds = useMemo(
-    () => (snapshot?.freshBoxes ?? []).map((box) => box._id),
-    [snapshot],
-  )
   const mapPoints = useMemo(
     () => boxesToGeoJson(mapBoxes, phenomenon, new Set(mapFreshIds)).features.length,
     [mapBoxes, phenomenon, mapFreshIds],
@@ -162,8 +187,6 @@ export function HomePage() {
     <>
       <Hero
         center={center}
-        boxes={boxes}
-        freshBoxIds={heroFreshIds}
         busy={status === 'loading'}
         onSearch={handleSearch}
         onLocate={handleLocate}
@@ -190,8 +213,8 @@ export function HomePage() {
       <section className="section" id="map">
         <h2>Karte & Stationen</h2>
         <p className="section-lead">
-          Zahlen an den Messpunkten, darunter die Wärme-/Kältefläche. Beim Verschieben oder Zoomen
-          lädt die Karte Stationen für den aktuellen Ausschnitt nach.
+          Zahlen an den Messpunkten, darunter die Wärme-/Kältefläche. Verschieben lädt den
+          Ausschnitt nach (bis ~40 km — dichtere Regionen brauchen das).
         </p>
         <div className="map-panel panel">
           <div className="map-toolbar" role="toolbar" aria-label="Phänomenfilter">
@@ -216,7 +239,6 @@ export function HomePage() {
           </div>
           <div className="map-stage">
             <SenseMap
-              key={snapshot?.generatedAt ?? 'pending'}
               center={center}
               recenterKey={snapshot?.generatedAt}
               boxes={mapBoxes}
@@ -225,14 +247,14 @@ export function HomePage() {
               selectedBoxId={selectedBoxId}
               onSelectBox={setSelectedBoxId}
               onViewportIdle={handleViewportIdle}
-              loading={mapLoading}
+              loading={mapLoading || status === 'loading'}
               loadRadiusKm={mapRadiusKm || undefined}
             />
             <MapLegend phenomenon={phenomenon} pointCount={mapPoints || undefined} />
           </div>
           {status === 'ready' && !mapLoading && phenomenon !== 'all' && mapPoints === 0 && (
             <StatusBanner tone="warning">
-              Keine Messwerte in diesem Ausschnitt — Ort suchen, Standort nutzen oder weiter zoomen.
+              Keine Messwerte in diesem Ausschnitt — Ort suchen, Standort nutzen oder näher zoomen.
             </StatusBanner>
           )}
           <StationList
@@ -262,6 +284,9 @@ export function HomePage() {
 
 function formatError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.status === 408) {
+      return 'Die openSenseMap-API antwortet gerade sehr langsam. Bitte kurz warten und erneut versuchen.'
+    }
     return `API-Fehler (${error.status}): ${error.message}`
   }
   if (error instanceof Error) return error.message

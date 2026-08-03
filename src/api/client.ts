@@ -6,11 +6,37 @@ export const API_BASE =
   'https://api.opensensemap.org'
 
 const DEFAULT_TIMEOUT_MS = 45_000
+const BOXES_LIST_TIMEOUT_MS = 90_000
+
+/** Serialize heavy /boxes list calls — parallel near-queries starve each other. */
+let boxesListChain: Promise<unknown> = Promise.resolve()
 
 export async function apiGet<T>(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<T> {
+  const isBoxesList = path === '/boxes'
+  const timeoutMs =
+    options.timeoutMs ?? (isBoxesList ? BOXES_LIST_TIMEOUT_MS : DEFAULT_TIMEOUT_MS)
+
+  const run = () => apiGetOnce<T>(path, params, timeoutMs, options.signal)
+  if (!isBoxesList) return run()
+
+  const next = boxesListChain.then(run, run)
+  // Keep the queue alive even if a request fails.
+  boxesListChain = next.then(
+    () => undefined,
+    () => undefined,
+  )
+  return next
+}
+
+async function apiGetOnce<T>(
+  path: string,
+  params: Record<string, string | number | boolean | undefined> | undefined,
+  timeoutMs: number,
+  outerSignal?: AbortSignal,
 ): Promise<T> {
   const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
 
@@ -24,8 +50,14 @@ export async function apiGet<T>(
   const started = performance.now()
   debug.debug('api', 'GET start', { url: url.toString() })
 
+  if (outerSignal?.aborted) {
+    throw new ApiError(`Aborted: ${path}`, 499, '')
+  }
+
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  const onOuterAbort = () => controller.abort()
+  outerSignal?.addEventListener('abort', onOuterAbort)
 
   try {
     const response = await fetch(url, {
@@ -66,6 +98,10 @@ export async function apiGet<T>(
     return data
   } catch (error) {
     if (error instanceof ApiError) throw error
+    if (outerSignal?.aborted) {
+      debug.warn('api', 'GET aborted', { path })
+      throw new ApiError(`Aborted: ${path}`, 499, '')
+    }
     if (error instanceof DOMException && error.name === 'AbortError') {
       debug.error('api', 'GET timeout', { path, timeoutMs })
       throw new ApiError(`Timeout after ${timeoutMs}ms: ${path}`, 408, '')
@@ -74,5 +110,6 @@ export async function apiGet<T>(
     throw error
   } finally {
     window.clearTimeout(timer)
+    outerSignal?.removeEventListener('abort', onOuterAbort)
   }
 }

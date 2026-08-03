@@ -22,6 +22,7 @@ export function ExplorePage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const viewportGen = useRef(0)
+  const viewportAbort = useRef<AbortController | null>(null)
   const phenomenonRef = useRef(phenomenon)
   phenomenonRef.current = phenomenon
 
@@ -31,8 +32,11 @@ export function ExplorePage() {
   }, [])
 
   const handleViewportIdle = useCallback(async (viewport: MapViewport) => {
-    const gen = ++viewportGen.current
     const radiusKm = radiusKmForViewport(viewport.center, viewport.northEast)
+    viewportAbort.current?.abort()
+    const controller = new AbortController()
+    viewportAbort.current = controller
+    const gen = ++viewportGen.current
     setLoading(true)
     setError(null)
     debug.info('explore', 'viewport idle → fetch', {
@@ -50,6 +54,7 @@ export function ExplorePage() {
         {
           preferPhenomenon:
             phenomenonRef.current === 'all' ? undefined : phenomenonRef.current,
+          signal: controller.signal,
         },
       )
       if (gen !== viewportGen.current) {
@@ -64,6 +69,10 @@ export function ExplorePage() {
       })
     } catch (err) {
       if (gen !== viewportGen.current) return
+      if (err instanceof Error && err.message.startsWith('Aborted')) {
+        debug.debug('explore', 'viewport aborted')
+        return
+      }
       debug.error('explore', 'viewport failed', err)
       setError(err instanceof Error ? err.message : 'Laden fehlgeschlagen')
     } finally {
