@@ -39,7 +39,9 @@ export function MapLegend({ phenomenon }: MapLegendProps) {
         <span>{scale.stops[0][0]}</span>
         <span>{scale.stops[scale.stops.length - 1][0]}</span>
       </div>
-      <p className="legend-note">Nur Stationen mit aktuellem {scale.label}-Wert · Zahlen auf der Karte.</p>
+      <p className="legend-note">
+        Transparente Flächen = interpolierte Wärme/Kälte · Zahlen = Messwerte an der Station.
+      </p>
     </div>
   )
 }

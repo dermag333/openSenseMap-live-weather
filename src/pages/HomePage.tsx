@@ -109,8 +109,8 @@ export function HomePage() {
       <section className="section" id="map">
         <h2>Karte & Stationen</h2>
         <p className="section-lead">
-          Filter steuern Farbe und Werte auf der Karte. Frische Stationen ohne Filter sind grün
-          hervorgehoben.
+          Unter den Messpunkten liegt eine transparente Wärme-/Kältefläche; darüber stehen die
+          Zahlen an den Stationen.
         </p>
         <div className="map-panel panel">
           <div className="map-toolbar" role="toolbar" aria-label="Phänomenfilter">

@@ -33,6 +33,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** Header in `geocode.ts`.
 - **Review:** Geocoding sollte mit gültigem UA funktionieren; bei 429 Rate-Limit in UI melden.
 
+## 2026-08-03 — Kartenfilter ohne Wärme-Layer / Zahlen
+
+- **Research:** Nutzer erwartet Zahlen an Messpunkten + transparenten Wärme-/Kälte-Layer dazwischen. Server-`/statistics/idw` liefert oft leere Features oder 422 (zu teuer).
+- **Ideate:** Clientseitiges IDW-Grid aus hydrierten Stationen + Symbol-Labels.
+- **Plan/Execute:** `heatGrid.ts`, `mapLayers.ts` (fill → circles → labels).
+- **Review:** Bei Phänomenfilter muss Fläche + Zahlen sichtbar sein.
+
 ## 2026-08-03 — Live-Demo zeigte keine Temperaturwerte
 
 - **Research:** Seite lud lange; danach „Kein frischer Temperaturwert“, obwohl frische Stationen gelistet waren. `GET /boxes` liefert `lastMeasurement` oft nur als ObjectId-String. `bbox`-Queries für Berlin dauerten ~30s (Timeout 20s).
