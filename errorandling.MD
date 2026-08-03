@@ -75,6 +75,13 @@ Probleme nach RIPER-5 dokumentieren (Research → Ideate → Plan → Execute �
 - **Plan/Execute:** `fetchViewportBoxes.ts`, `onViewportIdle` in SenseMap, Home/Explore nachladen, `max` → 55 °C, Nürnberg-Shortcut in Explore.
 - **Review:** Nach Pan zur eigenen Adresse / „Mein Standort“ / Suche Nürnberg muss MAG mit Zahl + Wärmefeld erscheinen.
 
+## 2026-08-03 — Rauszoomen lud keine Flächen-Daten
+
+- **Research:** Nutzer zooms auf Brandenburg/Polen-Maßstab; nur ein kleiner Cluster blieb. Ursache: `radiusKmForViewport` / `fetchViewportBoxes` hart auf **40 km** gedeckelt — Ausschnitt war optisch riesig, API-Radius winzig.
+- **Ideate:** Radius = sichtbarer Ausschnitt (bis ~220 km) + räumlich gestreute Hydration, damit nicht nur eine Stadt Messwerte bekommt.
+- **Plan/Execute:** Cap 220 km, `pickSpreadBoxes`, weichere Wärmefeld-Ränder.
+- **Review:** Weit rauszoomen muss Stationen über den sichtbaren Bereich verteilen, nicht nur den alten Suchpunkt.
+
 ## Offen
 
 - CORS der openSenseMap API ist für Browser-GET öffentlich; bei Änderungen Proxy über Netlify Functions prüfen.

@@ -51,5 +51,6 @@ export function haversineKm(a: LonLat, b: LonLat): number {
 /** Radius that covers a map viewport from center to northeast corner. */
 export function radiusKmForViewport(center: LonLat, northEast: LonLat): number {
   const raw = haversineKm(center, northEast) * 1.08
-  return Math.min(40, Math.max(2, raw))
+  // Wide zooms must cover the visible map (was wrongly capped at 40 km).
+  return Math.min(220, Math.max(2, raw))
 }

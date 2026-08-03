@@ -29,6 +29,7 @@ export function HomePage() {
   const [mapBoxes, setMapBoxes] = useState<SenseBox[]>([])
   const [mapFreshIds, setMapFreshIds] = useState<string[]>([])
   const [mapLoading, setMapLoading] = useState(false)
+  const [mapRadiusKm, setMapRadiusKm] = useState(0)
   const viewportGen = useRef(0)
 
   const loadAt = useCallback(async (nextCenter: LonLat, label: string) => {
@@ -67,6 +68,7 @@ export function HomePage() {
       if (gen !== viewportGen.current) return
       setMapBoxes(result.boxes)
       setMapFreshIds(result.freshIds)
+      setMapRadiusKm(result.radiusKm)
     } catch (error) {
       if (gen !== viewportGen.current) return
       console.error('Viewport load failed', error)
@@ -171,7 +173,14 @@ export function HomePage() {
             ))}
           </div>
           {mapLoading && (
-            <StatusBanner>Lade Stationen für den Kartenausschnitt…</StatusBanner>
+            <StatusBanner>
+              {`Lade Stationen für den Kartenausschnitt${mapRadiusKm > 0 ? ` (~${Math.round(mapRadiusKm)} km)` : ''}…`}
+            </StatusBanner>
+          )}
+          {!mapLoading && mapRadiusKm > 0 && (
+            <p className="legend-note" style={{ margin: '0 0 0.5rem' }}>
+              {`Aktueller Laderadius: ~${Math.round(mapRadiusKm)} km (folgt Zoom & Ausschnitt).`}
+            </p>
           )}
           <div className="map-stage">
             <SenseMap

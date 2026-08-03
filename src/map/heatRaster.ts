@@ -37,7 +37,7 @@ export function buildHeatRaster(
   const north = Math.max(...lats) + padLat
 
   const stops = PHENOMENON_SCALES[phenomenon].stops
-  const influence = Math.max(spanLon, spanLat) * 0.55
+  const influence = Math.max(spanLon, spanLat) * 0.85
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -57,14 +57,16 @@ export function buildHeatRaster(
 
       const nearest = nearestDistance(points, lon, lat)
       const falloff = Math.max(0, 1 - nearest / influence)
-      if (falloff < 0.04) continue
+      // Soft edge: smoothstep so the field doesn't look like a hard rectangle.
+      const soft = falloff * falloff * (3 - 2 * falloff)
+      if (soft < 0.05) continue
 
       const [r, g, b] = sampleColor(stops, value)
       const i = (row * width + col) * 4
       data[i] = r
       data[i + 1] = g
       data[i + 2] = b
-      data[i + 3] = Math.round(210 * falloff)
+      data[i + 3] = Math.round(195 * soft)
       painted += 1
     }
   }

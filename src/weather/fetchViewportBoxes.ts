@@ -2,6 +2,7 @@ import { fetchBoxes } from '../api/boxes'
 import type { SenseBox } from '../api/types'
 import { filterFreshBoxes } from './freshness'
 import { hydrateBoxes } from './hydrate'
+import { pickSpreadBoxes } from './pickSpreadBoxes'
 import type { LonLat } from './types'
 
 export type ViewportRequest = {
@@ -15,9 +16,11 @@ export type ViewportBoxesResult = {
   radiusKm: number
 }
 
+const MAX_RADIUS_KM = 220
+
 /**
- * Load stations for the current map view via fast `near` + distance
- * (bbox list queries are too slow for interactive panning).
+ * Load stations covering the visible map (near + distance).
+ * Wide zooms use a large radius and spread hydration so data fills the view.
  */
 export async function fetchViewportBoxes(
   viewport: ViewportRequest,
@@ -26,26 +29,28 @@ export async function fetchViewportBoxes(
     hydrateLimit?: number
   } = {},
 ): Promise<ViewportBoxesResult> {
-  const radiusKm = Math.min(40, Math.max(2, viewport.radiusKm))
+  const radiusKm = Math.min(MAX_RADIUS_KM, Math.max(2, viewport.radiusKm))
   const freshnessHours = options.freshnessHours ?? 12
-  const hydrateLimit = options.hydrateLimit ?? 40
+  const hydrateLimit =
+    options.hydrateLimit ?? Math.min(70, Math.max(28, Math.round(radiusKm / 2.5)))
 
   const data = await fetchBoxes({
     near: `${viewport.center.lon},${viewport.center.lat}`,
     maxDistance: Math.round(radiusKm * 1000),
   })
 
-  // Map should show every fresh station in view — no outdoor-only cull.
   const fresh = filterFreshBoxes(data, freshnessHours, false)
-  const ranked = [...fresh].sort((a, b) => {
-    const aTime = a.lastMeasurementAt ? Date.parse(a.lastMeasurementAt) : 0
-    const bTime = b.lastMeasurementAt ? Date.parse(b.lastMeasurementAt) : 0
-    return bTime - aTime
-  })
-
-  const hydrated = await hydrateBoxes(ranked, hydrateLimit)
+  const minSeparationKm = Math.max(1.2, radiusKm / 14)
+  const targets = pickSpreadBoxes(fresh, hydrateLimit, minSeparationKm)
+  const hydrated = await hydrateBoxes(targets, targets.length)
   const byId = new Map(hydrated.map((box) => [box._id, box]))
-  const boxes = data.map((box) => byId.get(box._id) ?? box)
+
+  // Prefer hydrated (valued) boxes for the map; keep a light trail of others.
+  const valued = hydrated
+  const extras = data
+    .filter((box) => !byId.has(box._id))
+    .slice(0, Math.min(40, Math.round(radiusKm / 4)))
+  const boxes = [...valued, ...extras]
 
   return {
     boxes,
