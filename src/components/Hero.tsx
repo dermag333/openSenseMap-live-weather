@@ -28,6 +28,7 @@ export function Hero({
           boxes={boxes}
           freshBoxIds={freshBoxIds}
           phenomenon="all"
+          showStats={false}
         />
       </div>
       <div className="hero-veil" />

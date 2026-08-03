@@ -30,6 +30,7 @@ type SenseMapProps = {
   selectedBoxId?: string
   onSelectBox?: (boxId: string) => void
   className?: string
+  showStats?: boolean
 }
 
 export function SenseMap({
@@ -40,6 +41,7 @@ export function SenseMap({
   selectedBoxId,
   onSelectBox,
   className,
+  showStats = true,
 }: SenseMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<Map | null>(null)
@@ -110,7 +112,16 @@ export function SenseMap({
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
+    if (!map) return
+
+    if (!map.isStyleLoaded()) {
+      const onReady = () => paintFromRef(map)
+      map.once('load', onReady)
+      return () => {
+        map.off('load', onReady)
+      }
+    }
+
     paintFromRef(map)
   }, [boxes, freshBoxIds, phenomenon, center])
 
@@ -171,11 +182,13 @@ export function SenseMap({
   return (
     <div className="map-frame">
       <div ref={containerRef} className={className ?? 'sense-map'} role="presentation" />
-      <div className="map-live-stats" aria-live="polite">
-        {phenomenon === 'all'
-          ? `${boxes.length} Stationen`
-          : `${stats.points} Messwerte · ${stats.cells} Wärmezellen`}
-      </div>
+      {showStats && (
+        <div className="map-live-stats" aria-live="polite">
+          {phenomenon === 'all'
+            ? `${boxes.length} Stationen`
+            : `${stats.points} Messwerte · ${stats.cells} Wärmezellen`}
+        </div>
+      )}
     </div>
   )
 }

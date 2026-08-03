@@ -144,6 +144,7 @@ export function HomePage() {
           </div>
           <div className="map-stage">
             <SenseMap
+              key={snapshot?.generatedAt ?? 'pending'}
               center={center}
               boxes={mapBoxes}
               freshBoxIds={freshIds}
