@@ -1,5 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { Map, NavigationControl, type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl'
+import {
+  LngLatBounds,
+  Map,
+  NavigationControl,
+  type GeoJSONSource,
+  type MapMouseEvent,
+} from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { SenseBox } from '../api/types'
 import type { LonLat, PhenomenonKey } from '../weather/types'
@@ -53,6 +59,7 @@ export function SenseMap({
 
     map.on('load', () => {
       addWeatherMapLayers(map)
+      map.resize()
 
       map.on('click', CIRCLE_LAYER, (event: MapMouseEvent) => {
         const feature = map.queryRenderedFeatures(event.point, {
@@ -88,19 +95,28 @@ export function SenseMap({
 
     const stations = boxesToGeoJson(boxes, phenomenon, new Set(freshBoxIds))
     const heatPoints = extractHeatPoints(stations.features)
-    const heat = phenomenon === 'all' ? emptyFc() : buildHeatGrid(heatPoints)
+    const heat = phenomenon === 'all' ? emptyFc() : buildHeatGrid(heatPoints, 32, 32)
 
     const apply = () => {
-      const stationSource = map.getSource(STATION_SOURCE) as GeoJSONSource | undefined
-      const heatSource = map.getSource(HEAT_SOURCE) as GeoJSONSource | undefined
-      stationSource?.setData(stations)
-      heatSource?.setData(heat)
+      if (!map.getSource(STATION_SOURCE) || !map.getSource(HEAT_SOURCE)) return false
+      ;(map.getSource(STATION_SOURCE) as GeoJSONSource).setData(stations)
+      ;(map.getSource(HEAT_SOURCE) as GeoJSONSource).setData(heat)
       applyPhenomenonStyle(map, phenomenon)
+      fitToStations(map, heatPoints, center)
+      map.resize()
+      return true
     }
 
-    if (map.isStyleLoaded()) apply()
-    else map.once('load', apply)
-  }, [boxes, freshBoxIds, phenomenon])
+    if (apply()) return
+
+    const onReady = () => {
+      apply()
+    }
+    map.once('load', onReady)
+    return () => {
+      map.off('load', onReady)
+    }
+  }, [boxes, freshBoxIds, phenomenon, center])
 
   useEffect(() => {
     const map = mapRef.current
@@ -120,4 +136,24 @@ export function SenseMap({
 
 function emptyFc() {
   return { type: 'FeatureCollection' as const, features: [] }
+}
+
+function fitToStations(
+  map: Map,
+  points: { lon: number; lat: number }[],
+  fallback: LonLat,
+) {
+  if (points.length === 0) {
+    map.easeTo({ center: [fallback.lon, fallback.lat], zoom: 11, duration: 500 })
+    return
+  }
+  if (points.length === 1) {
+    map.easeTo({ center: [points[0].lon, points[0].lat], zoom: 12.5, duration: 600 })
+    return
+  }
+  const bounds = points.reduce(
+    (b, p) => b.extend([p.lon, p.lat]),
+    new LngLatBounds([points[0].lon, points[0].lat], [points[0].lon, points[0].lat]),
+  )
+  map.fitBounds(bounds, { padding: 56, maxZoom: 13, duration: 700 })
 }

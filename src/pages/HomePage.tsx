@@ -136,7 +136,7 @@ export function HomePage() {
           <div className="map-stage">
             <SenseMap
               center={center}
-              boxes={boxes}
+              boxes={snapshot?.freshBoxes ?? boxes}
               freshBoxIds={freshIds}
               phenomenon={phenomenon}
               selectedBoxId={selectedBoxId}
